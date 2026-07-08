@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Class {
+  id        String   @id @default(cuid())
+  name      String
+  term      String?
+  createdAt DateTime @default(now())
+
+  materials Material[]
+  decks     Deck[]
+  quizzes   Quiz[]
+  guides    StudyGuide[]
+}
+
+model Material {
+  id            String   @id @default(cuid())
+  classId       String
+  class         Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  filename      String
+  mimeType      String
+  filePath      String
+  extractedText String?
+  status        String   @default("UPLOADED")
+  error         String?
+  createdAt     DateTime @default(now())
+
+  cards Card[]
+}
+
+model Deck {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime @default(now())
+
+  cards Card[]
+}
+
+model Card {
+  id               String    @id @default(cuid())
+  deckId           String
+  deck             Deck      @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front            String
+  back             String
+  sourceMaterialId String?
+  sourceMaterial   Material? @relation(fields: [sourceMaterialId], references: [id], onDelete: SetNull)
+  ease             Float     @default(2.5)
+  intervalDays     Float     @default(0)
+  dueAt            DateTime  @default(now())
+  reps             Int       @default(0)
+  lapses           Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  reviews Review[]
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  grade      String
+  reviewedAt DateTime @default(now())
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime @default(now())
+
+  questions Question[]
+}
+
+model Question {
+  id          String  @id @default(cuid())
+  quizId      String
+  quiz        Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        String
+  prompt      String
+  choicesJson String?
+  answer      String
+  explanation String?
+  order       Int     @default(0)
+}
+
+model StudyGuide {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title     String
+  contentMd String
+  createdAt DateTime @default(now())
+}
