@@ -22,8 +22,43 @@ export interface GuideDraft {
   contentMd: string;
 }
 
+// ---------------------------------------------------------------------------
+// Provider resolution
+// ---------------------------------------------------------------------------
+
+export type AiProvider = "ollama" | "anthropic" | "offline";
+
+/**
+ * Decide which AI backend to use. `AI_PROVIDER` wins if it's a valid value.
+ * Otherwise: use Anthropic if a key is configured (and MOCK_AI isn't forcing
+ * offline mode), else fall back to Ollama, the local/default engine.
+ */
+export function getProvider(): AiProvider {
+  const envProvider = process.env.AI_PROVIDER;
+  if (envProvider === "ollama" || envProvider === "anthropic" || envProvider === "offline") {
+    return envProvider;
+  }
+  if (process.env.ANTHROPIC_API_KEY && process.env.MOCK_AI !== "1") {
+    return "anthropic";
+  }
+  return "ollama";
+}
+
+/** True when running the offline heuristic path (no AI engine at all). */
 export function isMockMode(): boolean {
-  return process.env.MOCK_AI === "1" || !process.env.ANTHROPIC_API_KEY;
+  return getProvider() === "offline";
+}
+
+export function ollamaHost(): string {
+  return process.env.OLLAMA_HOST || "http://localhost:11434";
+}
+
+export function ollamaModel(): string {
+  return process.env.OLLAMA_MODEL || "llama3.1";
+}
+
+export function ollamaVisionModel(): string {
+  return process.env.OLLAMA_VISION_MODEL || "llama3.2-vision";
 }
 
 function getModel(): string {
@@ -56,6 +91,72 @@ function collectText(message: Anthropic.Message): string {
     .map((block) => block.text)
     .join("\n")
     .trim();
+}
+
+// ---------------------------------------------------------------------------
+// Ollama client
+// ---------------------------------------------------------------------------
+
+const OLLAMA_TIMEOUT_MS = 180000;
+
+/**
+ * Call a local Ollama server's chat endpoint and return the response text.
+ * `images`, when provided, are base64 strings with no `data:` prefix.
+ */
+async function ollamaChat(opts: {
+  model: string;
+  prompt: string;
+  images?: string[];
+  json?: boolean;
+}): Promise<string> {
+  const host = ollamaHost();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${host}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: opts.model,
+        messages: [
+          {
+            role: "user",
+            content: opts.prompt,
+            ...(opts.images ? { images: opts.images } : {}),
+          },
+        ],
+        stream: false,
+        ...(opts.json ? { format: "json" } : {}),
+        options: { temperature: 0.2, num_predict: 4096 },
+      }),
+      signal: controller.signal,
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach Ollama at ${host}. Install it from https://ollama.com, then run: ollama serve  (and once) ollama pull ${opts.model}.`,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        `Ollama model "${opts.model}" is not installed. Run: ollama pull ${opts.model}`,
+      );
+    }
+    const body = await response.text().catch(() => "");
+    throw new Error(`Ollama request failed with status ${response.status}: ${body}`);
+  }
+
+  const data = (await response.json()) as { message?: { content?: string } };
+  const content = data.message?.content?.trim();
+  if (!content) {
+    throw new Error("Ollama returned an empty response.");
+  }
+  return content;
 }
 
 /**
@@ -103,6 +204,11 @@ function parseJsonFromModel(raw: string): unknown {
 
 function splitSentences(text: string): string[] {
   return text
+    .split(/\r?\n/)
+    // Drop Markdown heading lines (e.g. the "## filename" separators added
+    // when concatenating materials) so they don't leak into offline cards.
+    .filter((line) => !/^\s*#{1,6}\s/.test(line))
+    .join(" ")
     .replace(/\s+/g, " ")
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
@@ -118,7 +224,7 @@ export async function extractText(
   mimeType: string,
   filename: string,
 ): Promise<string> {
-  // Plain text formats are read directly in both mock and real mode.
+  // Plain text formats are read directly regardless of provider.
   if (isTextMime(mimeType)) {
     return await fs.readFile(filePath, "utf-8");
   }
@@ -131,48 +237,61 @@ export async function extractText(
     return await fs.readFile(filePath, "utf-8");
   }
 
-  if (isMockMode()) {
-    return (
-      `[MOCK EXTRACTION] Mock mode is on (no API key). Placeholder content for ${filename}.\n\n` +
-      "Photosynthesis is the process by which plants convert light energy into chemical energy. " +
-      "The mitochondria is the powerhouse of the cell. " +
-      "Newton's second law states that force equals mass times acceleration. " +
-      "The French Revolution began in 1789. " +
-      "Water is composed of two hydrogen atoms and one oxygen atom."
-    );
+  if (isPdf) {
+    // PDFs are always extracted locally with pdf-parse: it's free and works
+    // offline, and a typed PDF's text layer is more reliable than sending
+    // rendered pages through a model. No provider needs to be involved.
+    // Import the internal module directly to skip pdf-parse's debug
+    // self-test, which tries to read a bundled sample file on plain import.
+    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+    const bytes = await fs.readFile(filePath);
+    // Pass a plain Uint8Array, not the Node Buffer subclass: pdf-parse's
+    // bundled (old) pdf.js misparses the xref table on modern Node when
+    // given a Buffer directly, throwing "bad XRef entry" on otherwise
+    // valid PDFs.
+    const result = await pdfParse(new Uint8Array(bytes));
+    const text = result.text || "";
+    if (!text.trim()) {
+      throw new Error(
+        "This PDF has no selectable text (looks scanned). Scanned PDFs and photos need an API key for OCR; typed PDFs and .txt/.md files work offline. " +
+          "(Tip: photograph the pages and upload them as images to OCR with Ollama vision.)",
+      );
+    }
+    return text;
   }
 
-  const client = getClient();
-  const bytes = await fs.readFile(filePath);
-  const base64 = bytes.toString("base64");
-
+  // isImage
+  const provider = getProvider();
   const prompt =
     "Transcribe all content in this document faithfully into plain text. " +
     "Include every piece of text, including any handwriting. " +
     "Preserve the structure using Markdown (headings, lists, tables) where appropriate. " +
     "Output only the transcription, with no preamble or commentary.";
 
-  const contentBlock = isPdf
-    ? ({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: base64,
-        },
-      } as Anthropic.DocumentBlockParam)
-    : ({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mimeType as
-            | "image/jpeg"
-            | "image/png"
-            | "image/gif"
-            | "image/webp",
-          data: base64,
-        },
-      } as Anthropic.ImageBlockParam);
+  if (provider === "offline") {
+    throw new Error(
+      "Image OCR needs an AI engine. Use Ollama (set AI_PROVIDER=ollama and pull a vision model like llama3.2-vision) or set ANTHROPIC_API_KEY. Text files and typed PDFs work with no AI.",
+    );
+  }
+
+  if (provider === "ollama") {
+    const bytes = await fs.readFile(filePath);
+    const base64 = bytes.toString("base64");
+    return await ollamaChat({ model: ollamaVisionModel(), prompt, images: [base64] });
+  }
+
+  // anthropic
+  const client = getClient();
+  const bytes = await fs.readFile(filePath);
+  const base64 = bytes.toString("base64");
+  const contentBlock: Anthropic.ImageBlockParam = {
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+      data: base64,
+    },
+  };
 
   const message = await client.messages.create({
     model: getModel(),
@@ -196,27 +315,7 @@ export async function extractText(
 // Flashcard generation
 // ---------------------------------------------------------------------------
 
-export async function generateFlashcards(text: string): Promise<FlashcardDraft[]> {
-  if (isMockMode()) {
-    return mockFlashcards(text);
-  }
-
-  const client = getClient();
-  const prompt =
-    "You are creating study flashcards from the material below. " +
-    "Produce between 15 and 25 flashcards covering the key concepts, definitions, and formulas. " +
-    "Include some cloze-style (fill-in-the-blank) cards. " +
-    "Respond with ONLY a JSON array, no prose and no markdown fences, in exactly this shape: " +
-    '[{"front": "question or prompt", "back": "answer"}]. ' +
-    `\n\nMATERIAL:\n${truncate(text)}`;
-
-  const message = await client.messages.create({
-    model: getModel(),
-    max_tokens: 8000,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const parsed = parseJsonFromModel(collectText(message));
+function validateFlashcards(parsed: unknown): FlashcardDraft[] {
   if (!Array.isArray(parsed)) {
     throw new Error("Flashcard generation did not return a JSON array.");
   }
@@ -239,35 +338,39 @@ export async function generateFlashcards(text: string): Promise<FlashcardDraft[]
   return cards;
 }
 
+export async function generateFlashcards(text: string): Promise<FlashcardDraft[]> {
+  const provider = getProvider();
+  if (provider === "offline") {
+    return mockFlashcards(text);
+  }
+
+  const prompt =
+    "You are creating study flashcards from the material below. " +
+    "Produce between 15 and 25 flashcards covering the key concepts, definitions, and formulas. " +
+    "Include some cloze-style (fill-in-the-blank) cards. " +
+    "Respond with ONLY a JSON array, no prose and no markdown fences, in exactly this shape: " +
+    '[{"front": "question or prompt", "back": "answer"}]. ' +
+    `\n\nMATERIAL:\n${truncate(text)}`;
+
+  const raw =
+    provider === "ollama"
+      ? await ollamaChat({ model: ollamaModel(), prompt, json: true })
+      : collectText(
+          await getClient().messages.create({
+            model: getModel(),
+            max_tokens: 8000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        );
+
+  return validateFlashcards(parseJsonFromModel(raw));
+}
+
 // ---------------------------------------------------------------------------
 // Quiz generation
 // ---------------------------------------------------------------------------
 
-export async function generateQuiz(text: string): Promise<QuizQuestionDraft[]> {
-  if (isMockMode()) {
-    return mockQuiz(text);
-  }
-
-  const client = getClient();
-  const prompt =
-    "You are creating a quiz from the material below. " +
-    "Produce between 8 and 12 questions mixing multiple choice, true/false, and short answer. " +
-    'Each multiple-choice question ("mcq") must have exactly 4 choices, with the answer being one of the choices verbatim. ' +
-    'True/false questions ("tf") must have an answer of "true" or "false". ' +
-    'Short answer questions ("short") expect a concise answer. ' +
-    "Every question must include an explanation. " +
-    "Respond with ONLY a JSON array, no prose and no markdown fences, in exactly this shape: " +
-    '[{"type": "mcq"|"tf"|"short", "prompt": "the question", "choices": ["a","b","c","d"], "answer": "correct answer", "explanation": "why"}]. ' +
-    'Omit "choices" for tf and short questions. ' +
-    `\n\nMATERIAL:\n${truncate(text)}`;
-
-  const message = await client.messages.create({
-    model: getModel(),
-    max_tokens: 8000,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const parsed = parseJsonFromModel(collectText(message));
+function validateQuiz(parsed: unknown): QuizQuestionDraft[] {
   if (!Array.isArray(parsed)) {
     throw new Error("Quiz generation did not return a JSON array.");
   }
@@ -302,33 +405,43 @@ export async function generateQuiz(text: string): Promise<QuizQuestionDraft[]> {
   return questions;
 }
 
+export async function generateQuiz(text: string): Promise<QuizQuestionDraft[]> {
+  const provider = getProvider();
+  if (provider === "offline") {
+    return mockQuiz(text);
+  }
+
+  const prompt =
+    "You are creating a quiz from the material below. " +
+    "Produce between 8 and 12 questions mixing multiple choice, true/false, and short answer. " +
+    'Each multiple-choice question ("mcq") must have exactly 4 choices, with the answer being one of the choices verbatim. ' +
+    'True/false questions ("tf") must have an answer of "true" or "false". ' +
+    'Short answer questions ("short") expect a concise answer. ' +
+    "Every question must include an explanation. " +
+    "Respond with ONLY a JSON array, no prose and no markdown fences, in exactly this shape: " +
+    '[{"type": "mcq"|"tf"|"short", "prompt": "the question", "choices": ["a","b","c","d"], "answer": "correct answer", "explanation": "why"}]. ' +
+    'Omit "choices" for tf and short questions. ' +
+    `\n\nMATERIAL:\n${truncate(text)}`;
+
+  const raw =
+    provider === "ollama"
+      ? await ollamaChat({ model: ollamaModel(), prompt, json: true })
+      : collectText(
+          await getClient().messages.create({
+            model: getModel(),
+            max_tokens: 8000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        );
+
+  return validateQuiz(parseJsonFromModel(raw));
+}
+
 // ---------------------------------------------------------------------------
 // Study guide generation
 // ---------------------------------------------------------------------------
 
-export async function generateGuide(
-  text: string,
-  className: string,
-): Promise<GuideDraft> {
-  if (isMockMode()) {
-    return mockGuide(text);
-  }
-
-  const client = getClient();
-  const prompt =
-    `You are creating an organized study guide for the class "${className}" from the material below. ` +
-    "The guide should use Markdown with clear headings, cover key terms, and highlight likely exam points. " +
-    "Respond with ONLY a JSON object, no prose and no markdown fences, in exactly this shape: " +
-    '{"title": "a concise guide title", "contentMd": "the full study guide in Markdown"}. ' +
-    `\n\nMATERIAL:\n${truncate(text)}`;
-
-  const message = await client.messages.create({
-    model: getModel(),
-    max_tokens: 8000,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const parsed = parseJsonFromModel(collectText(message));
+function validateGuide(parsed: unknown): GuideDraft {
   if (
     !parsed ||
     typeof parsed !== "object" ||
@@ -347,33 +460,110 @@ export async function generateGuide(
   return { title, contentMd };
 }
 
+export async function generateGuide(
+  text: string,
+  className: string,
+): Promise<GuideDraft> {
+  const provider = getProvider();
+  if (provider === "offline") {
+    return mockGuide(text, className);
+  }
+
+  const prompt =
+    `You are creating an organized study guide for the class "${className}" from the material below. ` +
+    "The guide should use Markdown with clear headings, cover key terms, and highlight likely exam points. " +
+    "Respond with ONLY a JSON object, no prose and no markdown fences, in exactly this shape: " +
+    '{"title": "a concise guide title", "contentMd": "the full study guide in Markdown"}. ' +
+    `\n\nMATERIAL:\n${truncate(text)}`;
+
+  const raw =
+    provider === "ollama"
+      ? await ollamaChat({ model: ollamaModel(), prompt, json: true })
+      : collectText(
+          await getClient().messages.create({
+            model: getModel(),
+            max_tokens: 8000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        );
+
+  return validateGuide(parseJsonFromModel(raw));
+}
+
 // ---------------------------------------------------------------------------
-// Deterministic mock generators (pure functions of the input text)
+// Offline generators (no AI engine, no network) — pure functions of the input
+// text that use simple heuristics instead of a model. Used whenever
+// isMockMode() is true. Output must always read as normal study content,
+// never mention that it was generated offline.
 // ---------------------------------------------------------------------------
 
-const MOCK_DISTRACTORS = [
+const OFFLINE_DISTRACTORS = [
   "None of the above",
   "An unrelated concept",
   "A common misconception",
 ];
 
-function firstWords(sentence: string, count: number): string {
-  return sentence.split(/\s+/).slice(0, count).join(" ");
+const DEFINITION_PATTERN =
+  /^(.{2,60}?)\s+(is|are|was|were|means|refers to|is defined as)\s+(.+)$/i;
+
+interface DefinitionMatch {
+  sentence: string;
+  term: string;
+  verb: string;
+  rest: string;
+}
+
+function matchDefinition(sentence: string): DefinitionMatch | null {
+  const match = sentence.match(DEFINITION_PATTERN);
+  if (!match) return null;
+  return { sentence, term: match[1].trim(), verb: match[2].toLowerCase(), rest: match[3].trim() };
+}
+
+/**
+ * Pick the best word in a sentence to blank out for a cloze card: prefer the
+ * longest capitalized (non-sentence-initial) word, otherwise the longest
+ * word over 6 characters.
+ */
+function pickClozeWord(sentence: string): string | null {
+  const words = sentence.match(/[A-Za-z][A-Za-z'-]*/g) ?? [];
+  const capitalized = words.filter(
+    (w, i) => i > 0 && /^[A-Z]/.test(w) && w.length > 2,
+  );
+  const pool = capitalized.length > 0 ? capitalized : words.filter((w) => w.length > 6);
+  if (pool.length === 0) return null;
+  return pool.reduce((longest, w) => (w.length > longest.length ? w : longest), pool[0]);
+}
+
+function blankWord(sentence: string, word: string): string {
+  const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+  return sentence.replace(re, "_____");
 }
 
 function mockFlashcards(text: string): FlashcardDraft[] {
   const sentences = splitSentences(text);
   const cards: FlashcardDraft[] = [];
-  for (const sentence of sentences.slice(0, 10)) {
-    cards.push({
-      front: `Recall (mock): "${firstWords(sentence, 8)}..."`,
-      back: sentence,
-    });
+  for (const sentence of sentences) {
+    if (cards.length >= 20) break;
+    const def = matchDefinition(sentence);
+    if (def) {
+      cards.push({
+        front: `What ${def.verb} ${def.term}?`,
+        back: def.sentence,
+      });
+      continue;
+    }
+    const word = pickClozeWord(sentence);
+    if (word) {
+      cards.push({
+        front: blankWord(sentence, word),
+        back: `${word} (full sentence: ${sentence})`,
+      });
+    }
   }
   if (cards.length === 0) {
     cards.push({
-      front: 'Recall (mock): "No content available..."',
-      back: "No study material was provided.",
+      front: "No text was extracted",
+      back: "Upload a .txt, .md, or typed PDF file to generate cards.",
     });
   }
   return cards;
@@ -382,51 +572,71 @@ function mockFlashcards(text: string): FlashcardDraft[] {
 function mockQuiz(text: string): QuizQuestionDraft[] {
   const sentences = splitSentences(text);
   const questions: QuizQuestionDraft[] = [];
-  const usable = sentences.slice(0, 6);
+  const usable = sentences.slice(0, 8);
+
   usable.forEach((sentence, index) => {
+    if (questions.length >= 8) return;
     if (index % 2 === 0) {
       questions.push({
         type: "mcq",
-        prompt: `Which statement is correct? (mock #${index + 1})`,
-        choices: [sentence, ...MOCK_DISTRACTORS],
+        prompt: "Which statement is correct?",
+        choices: [sentence, ...OFFLINE_DISTRACTORS],
         answer: sentence,
-        explanation: "The correct choice is the statement taken from the source material.",
+        explanation: "This statement comes directly from your notes.",
       });
     } else {
       questions.push({
         type: "tf",
-        prompt: `True or false (mock #${index + 1}): ${sentence}`,
+        prompt: `True or false: ${sentence}`,
         answer: "true",
-        explanation: "This statement is drawn directly from the source material, so it is true.",
+        explanation: "This statement comes directly from your notes, so it is true.",
       });
     }
   });
-  // Add a short-answer question if we have material for it.
-  if (usable.length > 0) {
-    const sentence = usable[0];
-    questions.push({
-      type: "short",
-      prompt: `Short answer (mock): What is the first key term in: "${firstWords(sentence, 8)}..."?`,
-      answer: firstWords(sentence, 1),
-      explanation: "The expected answer is the first word of the source sentence.",
-    });
+
+  // Add one short-answer fill-in-the-blank question if we can find a good term.
+  for (const sentence of usable) {
+    if (questions.length >= 8) break;
+    const word = pickClozeWord(sentence);
+    if (word) {
+      questions.push({
+        type: "short",
+        prompt: `Fill in the blank: ${blankWord(sentence, word)}`,
+        answer: word,
+        explanation: `The missing word is "${word}", taken from your notes.`,
+      });
+      break;
+    }
   }
+
   if (questions.length === 0) {
     questions.push({
       type: "short",
-      prompt: "Short answer (mock): No content was provided. What should you upload?",
-      answer: "material",
-      explanation: "Upload study material to generate a real quiz.",
+      prompt: "What should you upload to generate a quiz?",
+      answer: "study material",
+      explanation: "Upload a .txt, .md, or typed PDF file to generate quiz questions.",
     });
   }
   return questions;
 }
 
-function mockGuide(text: string): GuideDraft {
+function mockGuide(text: string, className: string): GuideDraft {
   const sentences = splitSentences(text);
   const bullets = sentences.length
     ? sentences.map((s) => `- ${s}`).join("\n")
     : "- No study material was provided.";
-  const contentMd = `# Study Guide (mock)\n\n## Key Points\n\n${bullets}\n`;
-  return { title: "Study Guide (mock)", contentMd };
+
+  const definitions = sentences
+    .map((s) => matchDefinition(s))
+    .filter((d): d is DefinitionMatch => d !== null);
+
+  let contentMd = `# ${className} — Study Guide\n\n## Key Points\n\n${bullets}\n`;
+  if (definitions.length > 0) {
+    const terms = definitions
+      .map((d) => `**${d.term}** — ${d.rest}`)
+      .join("\n\n");
+    contentMd += `\n## Key Terms\n\n${terms}\n`;
+  }
+
+  return { title: `${className} — Study Guide`, contentMd };
 }

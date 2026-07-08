@@ -108,15 +108,24 @@ export default function GuidePage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h1 className="min-w-0 truncate text-2xl font-bold text-gray-900">{guide.title}</h1>
-        <button
-          type="button"
-          onClick={handleDownload}
-          className="shrink-0 rounded-lg border border-cyan-600 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50"
-        >
-          Download .md
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <a
+            href={`/api/guides/${guideId}/export.html`}
+            download
+            className="rounded-lg bg-cyan-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-cyan-700"
+          >
+            Download for phone (HTML)
+          </a>
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="rounded-lg border border-cyan-600 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50"
+          >
+            Download .md
+          </button>
+        </div>
       </div>
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
         <ReactMarkdown components={markdownComponents}>{guide.contentMd}</ReactMarkdown>

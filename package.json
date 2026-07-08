@@ -6,12 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup": "prisma generate && prisma db push",
+    "go": "npm install && npm run setup && next dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
     "@prisma/client": "^6.19.3",
+    "marked": "^18.0.5",
     "next": "15.5.20",
+    "pdf-parse": "^1.1.4",
     "prisma": "^6.19.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",

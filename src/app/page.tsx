@@ -6,6 +6,7 @@ import type { ClassSummaryDto } from "@/lib/types";
 import { apiFetch, getErrorMessage } from "@/components/api";
 import Spinner from "@/components/Spinner";
 import ErrorNotice from "@/components/ErrorNotice";
+import EngineBanner from "@/components/EngineBanner";
 
 export default function Home() {
   const [classes, setClasses] = useState<ClassSummaryDto[] | null>(null);
@@ -52,6 +53,8 @@ export default function Home() {
       <p className="mt-1 text-sm text-gray-500">
         Upload class materials and Study Creator turns them into flashcards, practice tests, and study guides.
       </p>
+
+      <EngineBanner />
 
       <form
         onSubmit={handleCreate}
