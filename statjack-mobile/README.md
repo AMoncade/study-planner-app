@@ -42,8 +42,10 @@ statjack-mobile/
 ├── index.html            # Jeu complet (moteur + probabilités + UI), sans dépendance
 ├── manifest.webmanifest  # Manifeste PWA (installation écran d'accueil)
 ├── sw.js                 # Service worker (cache hors-ligne)
+├── cartes/               # Les 52 cartes du jeu original (optimisées mobile)
+├── logo.png              # Logo StatJack
 ├── icon-192.png / icon-512.png / apple-touch-icon.png
 └── README.md
 ```
 
-Aucune dépendance externe, aucun build : un seul fichier HTML autonome.
+Aucune dépendance externe, aucun build. Si les images de cartes sont absentes, le jeu bascule automatiquement sur un rendu CSS.

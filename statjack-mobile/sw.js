@@ -1,12 +1,20 @@
 /* StatJack Mobile — service worker : jeu jouable hors-ligne */
-const CACHE = 'statjack-v1';
+const CACHE = 'statjack-v2';
+
+const SUITS = ['hearts', 'diamonds', 'spades', 'clubs'];
+const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+const CARTES = [];
+for (const s of SUITS) for (const r of RANKS) CARTES.push(`./cartes/${r}_${s}.png`);
+
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './logo.png',
   './icon-192.png',
   './icon-512.png',
-  './apple-touch-icon.png'
+  './apple-touch-icon.png',
+  ...CARTES
 ];
 
 self.addEventListener('install', (e) => {
@@ -22,7 +30,7 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-/* Réseau d'abord pour index.html (mises à jour), cache sinon */
+/* Réseau d'abord (mises à jour), cache en secours (hors-ligne) */
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(

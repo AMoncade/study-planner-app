@@ -47,7 +47,8 @@
     justify-content: space-between;
     gap: 8px;
   }
-  .brand { font-weight: 800; letter-spacing: 1px; font-size: 18px; color: var(--gold); }
+  .brand { font-weight: 800; letter-spacing: 1px; font-size: 18px; color: var(--gold); display: flex; align-items: center; gap: 8px; }
+  .brand img { width: 30px; height: 30px; border-radius: 7px; }
   .brand small { color: var(--ink); opacity: .6; font-weight: 400; letter-spacing: 0; }
   .bank {
     background: var(--panel);
@@ -90,6 +91,15 @@
     padding: 4px 10px;
     min-height: 0;
     overflow: hidden;
+    position: relative;
+  }
+  #watermark {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 130px; height: 130px;
+    opacity: .10;
+    pointer-events: none;
   }
   .zone { text-align: center; }
   .zone-label { font-size: 12px; opacity: .7; margin-bottom: 4px; }
@@ -120,24 +130,28 @@
   .hand-result { font-size: 12px; margin-top: 2px; color: var(--gold); font-weight: 700; }
 
   .card {
-    width: 52px;
-    height: 74px;
+    width: 54px;
+    height: 78px;
     border-radius: 7px;
     background: #fdfdf8;
     color: #1a1a1a;
-    box-shadow: 0 2px 6px rgba(0,0,0,.45);
+    box-shadow: 0 3px 8px rgba(0,0,0,.5);
     position: relative;
     display: inline-block;
     animation: deal .25s ease-out;
     flex-shrink: 0;
+    overflow: hidden;
   }
   @keyframes deal { from { transform: translateY(-14px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
   .card .corner { position: absolute; top: 3px; left: 5px; font-size: 14px; font-weight: 800; line-height: 1; text-align: center; }
   .card .corner small { display: block; font-size: 11px; }
   .card .pip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #fdfdf8; }
   .card.red { color: var(--red); }
   .card.back {
-    background: repeating-linear-gradient(45deg, #7a1f1f, #7a1f1f 6px, #641313 6px, #641313 12px);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(255,255,255,.12) 0 2px, transparent 3px) 0 0 / 12px 12px,
+      repeating-linear-gradient(45deg, #7a1f1f, #7a1f1f 6px, #5e1212 6px, #5e1212 12px);
     border: 3px solid #fdfdf8;
   }
   .msg {
@@ -286,7 +300,7 @@
 <body id="body">
 
 <header>
-  <div class="brand">STATJACK <small>mobile</small></div>
+  <div class="brand"><img src="logo.png" alt="" onerror="this.remove()">STATJACK <small>mobile</small></div>
   <div class="bank" id="bank">$ 10 000</div>
   <button class="icon-btn" id="btnGraphe" title="Graphe de simulation">📈</button>
   <button class="icon-btn" id="btnSettings" title="Paramètres">⚙️</button>
@@ -300,6 +314,7 @@
 </div>
 
 <main>
+  <img id="watermark" src="logo.png" alt="" onerror="this.remove()">
   <section class="zone">
     <div class="zone-label" id="lblDealer">Croupier</div>
     <div class="cards-row" id="dealerCards"></div>
@@ -840,12 +855,19 @@ let ignorerVerifEntrainement = false;
 function fmtArgent(n) { return '$ ' + n.toLocaleString('fr-CA'); }
 function fmtPct(x) { return (x * 100).toFixed(1) + ' %'; }
 
+const NOM_COULEUR = { '♥': 'hearts', '♦': 'diamonds', '♠': 'spades', '♣': 'clubs' };
 function elCarte(c, cachee = false) {
   const div = document.createElement('div');
   if (cachee) { div.className = 'card back'; return div; }
   const rouge = c.couleur === '♥' || c.couleur === '♦';
   div.className = 'card' + (rouge ? ' red' : '');
+  /* rendu CSS en dessous, illustration officielle par-dessus si disponible */
   div.innerHTML = `<div class="corner">${c.rang}<small>${c.couleur}</small></div><div class="pip">${c.couleur}</div>`;
+  const img = document.createElement('img');
+  img.src = `cartes/${c.rang}_${NOM_COULEUR[c.couleur]}.png`;
+  img.alt = '';
+  img.onerror = () => img.remove();
+  div.appendChild(img);
   return div;
 }
 
@@ -894,6 +916,8 @@ function rafraichir(reveler) {
       const r = document.createElement('div');
       r.className = 'hand-result';
       r.textContent = m.resultat;
+      if (m.resultat.startsWith('Gagné') || m.resultat === 'Blackjack!') r.style.color = '#66bb6a';
+      else if (m.resultat.startsWith('Perdu')) r.style.color = '#ef9a9a';
       box.appendChild(r);
     }
     box.scrollIntoView && i === jeu.indexActif && box.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -1089,6 +1113,9 @@ function actionSplit() {
 function finirManche() {
   const resultats = jeu.calculerResultats();
   $('msg').textContent = resultats.join(' | ');
+  const queDesGains = resultats.every(r => r.startsWith('Gagné') || r === 'Blackjack!');
+  const queDesPertes = resultats.every(r => r.startsWith('Perdu'));
+  $('msg').style.color = queDesGains ? '#66bb6a' : queDesPertes ? '#ef9a9a' : 'var(--gold)';
   setPhase(PHASE.RESULTAT);
   rafraichir(true);
   const aGagne = resultats.some(r => r === 'Gagné' || r === 'Gagné (Croupier bust)' || r === 'Blackjack!');
@@ -1119,6 +1146,7 @@ function prochaineManche() {
   actionEnAttente = null;
   setPhase(PHASE.MISE);
   $('msg').textContent = '';
+  $('msg').style.color = 'var(--gold)';
   miseCourante = 0;
   $('betAmount').textContent = '0';
   jeu.mains.forEach(m => m.resultat = null);
