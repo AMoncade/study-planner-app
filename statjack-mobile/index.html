@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b3b2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StatJack">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>StatJack — Blackjack Probabiliste</title>
+<style>
+  :root {
+    --felt: #0b3b2e;
+    --felt-dark: #072a20;
+    --felt-light: #14523f;
+    --gold: #d4af37;
+    --ink: #f2efe6;
+    --red: #c62828;
+    --green-ok: #43a047;
+    --panel: rgba(0, 0, 0, 0.35);
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overscroll-behavior: none; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(ellipse at 50% 30%, var(--felt-light) 0%, var(--felt) 55%, var(--felt-dark) 100%);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    padding: calc(var(--sat) + 8px) 12px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .brand { font-weight: 800; letter-spacing: 1px; font-size: 18px; color: var(--gold); }
+  .brand small { color: var(--ink); opacity: .6; font-weight: 400; letter-spacing: 0; }
+  .bank {
+    background: var(--panel);
+    border: 1px solid rgba(212,175,55,.4);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-weight: 700;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .icon-btn {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.15);
+    color: var(--ink);
+    border-radius: 10px;
+    min-width: 40px;
+    height: 40px;
+    font-size: 18px;
+    padding: 0 10px;
+  }
+
+  /* ---------- Count strip ---------- */
+  .count-strip {
+    display: flex;
+    justify-content: space-around;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    opacity: .9;
+  }
+  .count-strip b { font-size: 13px; display: block; text-align: center; }
+  .count-strip span { display: block; text-align: center; opacity: .65; }
+
+  /* ---------- Table ---------- */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 4px 10px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .zone { text-align: center; }
+  .zone-label { font-size: 12px; opacity: .7; margin-bottom: 4px; }
+  .cards-row {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-height: 78px;
+    align-items: center;
+  }
+  .hands-scroller {
+    display: flex;
+    justify-content: safe center;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 2px;
+  }
+  .hand-box {
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 6px;
+    min-width: 130px;
+    flex-shrink: 0;
+  }
+  .hand-box.active { border-color: var(--gold); background: rgba(212,175,55,.08); }
+  .hand-total { font-size: 13px; margin-top: 4px; font-weight: 600; }
+  .hand-result { font-size: 12px; margin-top: 2px; color: var(--gold); font-weight: 700; }
+
+  .card {
+    width: 52px;
+    height: 74px;
+    border-radius: 7px;
+    background: #fdfdf8;
+    color: #1a1a1a;
+    box-shadow: 0 2px 6px rgba(0,0,0,.45);
+    position: relative;
+    display: inline-block;
+    animation: deal .25s ease-out;
+    flex-shrink: 0;
+  }
+  @keyframes deal { from { transform: translateY(-14px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+  .card .corner { position: absolute; top: 3px; left: 5px; font-size: 14px; font-weight: 800; line-height: 1; text-align: center; }
+  .card .corner small { display: block; font-size: 11px; }
+  .card .pip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .card.red { color: var(--red); }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #7a1f1f, #7a1f1f 6px, #641313 6px, #641313 12px);
+    border: 3px solid #fdfdf8;
+  }
+  .msg {
+    text-align: center;
+    font-weight: 800;
+    font-size: 17px;
+    min-height: 24px;
+    color: var(--gold);
+    text-shadow: 0 1px 3px rgba(0,0,0,.6);
+    padding: 2px 8px;
+  }
+
+  /* ---------- Stats panel ---------- */
+  .stats {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    padding: 8px 10px;
+    margin: 4px 0;
+    font-size: 12.5px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+  .stats .wide { grid-column: 1 / -1; }
+  .stats b.hit { color: #66bb6a; }
+  .stats b.stand { color: #ef9a9a; }
+  .bar {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.12);
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  .bar i { display: block; height: 100%; background: var(--red); width: 0; transition: width .3s; }
+  .bar.good i { background: var(--green-ok); }
+  .mc-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 11.5px; }
+  .mc-table th, .mc-table td { padding: 2px 4px; text-align: right; }
+  .mc-table th:first-child, .mc-table td:first-child { text-align: left; }
+  .mc-table th { opacity: .6; font-weight: 600; }
+
+  /* ---------- Actions ---------- */
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 8px 10px calc(var(--sab) + 10px);
+  }
+  .btn {
+    border: none;
+    border-radius: 14px;
+    padding: 14px 4px;
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+    background: var(--felt-light);
+    border: 1px solid rgba(255,255,255,.2);
+    box-shadow: 0 3px 0 rgba(0,0,0,.35);
+    transition: transform .05s, opacity .2s;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: none; }
+  .btn:disabled { opacity: .35; pointer-events: none; }
+  .btn-hit { background: #1565c0; }
+  .btn-stand { background: #c62828; }
+  .btn-double { background: #6a1b9a; }
+  .btn-split { background: #ef6c00; }
+  .btn-primary { background: var(--gold); color: #201700; grid-column: span 2; }
+  .btn-ghost { background: transparent; }
+
+  /* ---------- Betting ---------- */
+  .bet-area { text-align: center; padding: 4px 0; }
+  .bet-circle {
+    width: 92px; height: 92px;
+    margin: 6px auto;
+    border-radius: 50%;
+    border: 3px dashed rgba(212,175,55,.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+  }
+  .bet-circle small { font-size: 10px; font-weight: 400; opacity: .6; }
+  .chips { display: flex; justify-content: center; gap: 10px; padding: 6px 0; }
+  .chip {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    border: 4px dashed rgba(255,255,255,.85);
+    font-weight: 800;
+    font-size: 13px;
+    color: #fff;
+    box-shadow: 0 3px 5px rgba(0,0,0,.4), inset 0 0 0 3px rgba(0,0,0,.25);
+  }
+  .chip:active { transform: scale(.92); }
+  .chip[data-v="25"]   { background: #2e7d32; }
+  .chip[data-v="100"]  { background: #1565c0; }
+  .chip[data-v="500"]  { background: #6a1b9a; }
+  .chip[data-v="1000"] { background: #c62828; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #10322a;
+    border: 1px solid rgba(212,175,55,.5);
+    border-radius: 16px;
+    padding: 18px;
+    max-width: 420px;
+    width: 100%;
+    max-height: 82dvh;
+    overflow-y: auto;
+  }
+  .modal h2 { color: var(--gold); font-size: 17px; margin-bottom: 10px; }
+  .modal p, .modal label { font-size: 14px; line-height: 1.5; margin-bottom: 10px; display: block; }
+  .modal .row { display: flex; gap: 10px; margin-top: 12px; }
+  .modal .row .btn { flex: 1; padding: 12px 4px; }
+  .modal select, .modal input[type=checkbox] { transform: scale(1.15); accent-color: var(--gold); }
+  .modal select {
+    transform: none;
+    background: var(--felt-dark);
+    color: var(--ink);
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .set-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  canvas#graphe { width: 100%; height: 220px; background: rgba(0,0,0,.3); border-radius: 10px; }
+
+  .hidden { display: none !important; }
+  .pulse-win  { animation: winflash .8s; }
+  .pulse-lose { animation: loseflash .8s; }
+  @keyframes winflash  { 30% { box-shadow: inset 0 0 120px rgba(67,160,71,.55); } }
+  @keyframes loseflash { 30% { box-shadow: inset 0 0 120px rgba(198,40,40,.55); } }
+</style>
+</head>
+<body id="body">
+
+<header>
+  <div class="brand">STATJACK <small>mobile</small></div>
+  <div class="bank" id="bank">$ 10 000</div>
+  <button class="icon-btn" id="btnGraphe" title="Graphe de simulation">📈</button>
+  <button class="icon-btn" id="btnSettings" title="Paramètres">⚙️</button>
+</header>
+
+<div class="count-strip" id="countStrip">
+  <div><b id="rc">0</b><span>Running</span></div>
+  <div><b id="tc">0.0</b><span>True Count</span></div>
+  <div><b id="cartesRestantes">312</b><span>Cartes</span></div>
+  <div><b id="avantage">-0.5%</b><span>Avantage</span></div>
+</div>
+
+<main>
+  <section class="zone">
+    <div class="zone-label" id="lblDealer">Croupier</div>
+    <div class="cards-row" id="dealerCards"></div>
+  </section>
+
+  <div class="msg" id="msg"></div>
+
+  <section class="zone">
+    <div class="zone-label" id="lblJoueur">Vous</div>
+    <div class="hands-scroller" id="playerHands"></div>
+  </section>
+
+  <section class="stats" id="statsPanel">
+    <div>Bust si Hit : <b id="pBust">--</b><div class="bar" id="barBust"><i></i></div></div>
+    <div>Améliorer : <b id="pAmeliorer">--</b><div class="bar good" id="barAmeliorer"><i></i></div></div>
+    <div>Reco : <b id="reco">--</b></div>
+    <div>Edge décision : <b id="edge">--</b></div>
+    <div>EV stand : <b id="evStand">--</b></div>
+    <div>EV optimal : <b id="evOpt">--</b></div>
+    <div class="wide" id="mcWrap"></div>
+  </section>
+</main>
+
+<!-- Bet phase -->
+<div class="bet-area" id="betArea">
+  <div class="bet-circle" id="betCircle"><span id="betAmount">0</span><small>toucher pour effacer</small></div>
+  <div class="chips">
+    <button class="chip" data-v="25">25</button>
+    <button class="chip" data-v="100">100</button>
+    <button class="chip" data-v="500">500</button>
+    <button class="chip" data-v="1000">1000</button>
+  </div>
+</div>
+
+<div class="actions" id="actionsBar">
+  <button class="btn btn-hit" id="btnHit">HIT</button>
+  <button class="btn btn-stand" id="btnStand">STAND</button>
+  <button class="btn btn-double" id="btnDouble">×2</button>
+  <button class="btn btn-split" id="btnSplit">SPLIT</button>
+</div>
+
+<div class="actions hidden" id="betBar">
+  <button class="btn btn-ghost" id="btnClear">Effacer</button>
+  <button class="btn btn-primary" id="btnDeal">MISER</button>
+  <button class="btn btn-ghost" id="btnRebet">Re-miser</button>
+</div>
+
+<div class="actions hidden" id="resultBar">
+  <button class="btn btn-primary" id="btnNext" style="grid-column: 1 / -1;">Prochaine manche</button>
+</div>
+
+<!-- Training warning modal -->
+<div class="modal-backdrop" id="trainModal">
+  <div class="modal">
+    <h2>⚠️ Décision sous-optimale</h2>
+    <p id="trainText"></p>
+    <div class="row">
+      <button class="btn btn-stand" id="trainCancel">Annuler</button>
+      <button class="btn" id="trainProceed">Continuer quand même</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ Paramètres</h2>
+    <div class="set-row"><label for="setPaquets">Nombre de paquets</label>
+      <select id="setPaquets">
+        <option>1</option><option>2</option><option>4</option><option selected>6</option><option>8</option>
+      </select>
+    </div>
+    <div class="set-row"><label for="setSons">Sons</label><input type="checkbox" id="setSons" checked></div>
+    <div class="set-row"><label for="setEntrainement">Mode entraînement</label><input type="checkbox" id="setEntrainement"></div>
+    <div class="set-row"><label>Banque</label><button class="btn btn-stand" id="btnResetBanque" style="padding:8px 14px;">Réinitialiser ($10 000)</button></div>
+    <p style="opacity:.55; font-size:12px;">Le mode entraînement masque les probabilités et intercepte les décisions mathématiquement sous-optimales. Changer le nombre de paquets réinitialise le sabot.</p>
+    <div class="row"><button class="btn btn-primary" id="settingsClose" style="grid-column:auto;">Fermer</button></div>
+  </div>
+</div>
+
+<!-- Graph modal -->
+<div class="modal-backdrop" id="grapheModal">
+  <div class="modal">
+    <h2>📈 Convergence des gains (1000 mains simulées)</h2>
+    <canvas id="graphe" width="760" height="440"></canvas>
+    <p style="opacity:.6; font-size:12px; margin-top:8px;">Gain moyen par main (stratégie « tirer jusqu'à 17 ») sur le sabot actuel. Illustre la variance à court terme et la convergence vers l'espérance.</p>
+    <div class="row">
+      <button class="btn" id="grapheRelancer">Relancer</button>
+      <button class="btn btn-primary" id="grapheClose">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   StatJack Mobile — port JavaScript fidèle des modèles Python
+   (src/models/carte.py, sabot.py, main_joueur.py, jeu.py,
+    probabilites.py) du projet StatJack.
+   ============================================================ */
+
+/* ---------------- Carte ---------------- */
+const COULEURS = ['♥', '♦', '♠', '♣'];
+const RANGS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+
+function valeurBlackjack(rang) {
+  if (rang === 'J' || rang === 'Q' || rang === 'K') return 10;
+  if (rang === 'A') return 11;
+  return parseInt(rang, 10);
+}
+function valeurHilo(rang) {
+  const v = valeurBlackjack(rang);
+  if (v <= 6) return 1;
+  if (v <= 9) return 0;
+  return -1;
+}
+function carte(rang, couleur) { return { rang, couleur, v: valeurBlackjack(rang) }; }
+
+/* ---------------- Sabot ---------------- */
+class Sabot {
+  constructor(nbPaquets = 6) {
+    this.nbPaquets = nbPaquets;
+    this.cartes = [];
+    this.runningCount = 0;
+    this.initialiser();
+  }
+  initialiser() {
+    this.cartes = [];
+    this.runningCount = 0;
+    for (let p = 0; p < this.nbPaquets; p++)
+      for (const c of COULEURS)
+        for (const r of RANGS)
+          this.cartes.push(carte(r, c));
+    this.melanger();
+  }
+  melanger() {
+    this.runningCount = 0;
+    for (let i = this.cartes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.cartes[i], this.cartes[j]] = [this.cartes[j], this.cartes[i]];
+    }
+  }
+  tirer() {
+    if (this.cartes.length === 0) return null;
+    const c = this.cartes.pop();
+    this.runningCount += valeurHilo(c.rang);
+    return c;
+  }
+  cartesRestantes() { return this.cartes.length; }
+  trueCount() {
+    if (this.cartes.length === 0) return 0;
+    return this.runningCount / (this.cartes.length / 52);
+  }
+  /* Vue du sabot côté joueur : on remet la hole card comme inconnue */
+  valeursVueJoueur(holeCard) {
+    const vals = this.cartes.map(c => c.v);
+    if (holeCard) vals.push(holeCard.v);
+    return vals;
+  }
+}
+
+/* ---------------- Main ---------------- */
+class Main {
+  constructor() {
+    this.cartes = [];
+    this.mise = 0;
+    this.estDouble = false;
+    this.mainFermee = false;
+    this.resultat = null;
+  }
+  ajouter(c) { this.cartes.push(c); }
+  retirer() { return this.cartes.pop() || null; }
+  valeurTotale() {
+    let total = 0, as = 0;
+    for (const c of this.cartes) { total += c.v; if (c.rang === 'A') as++; }
+    while (total > 21 && as > 0) { total -= 10; as--; }
+    return total;
+  }
+  etat() { /* (total, soft aces encore comptés 11) */
+    let total = 0, soft = 0;
+    for (const c of this.cartes) { total += c.v; if (c.rang === 'A') soft++; }
+    while (total > 21 && soft > 0) { total -= 10; soft--; }
+    return [total, soft];
+  }
+  estBlackjack() { return this.cartes.length === 2 && this.valeurTotale() === 21; }
+  estBusted() { return this.valeurTotale() > 21; }
+  peutSplit() { return this.cartes.length === 2 && this.cartes[0].v === this.cartes[1].v; }
+  peutDouble() { return this.cartes.length === 2 && !this.mainFermee; }
+}
+
+/* ---------------- Banque + Settings (localStorage) ---------------- */
+const DEFAUTS = { sons: true, nb_paquets: 6, argent: 10000, mode_entrainement: false };
+const settings = {
+  _data: { ...DEFAUTS },
+  charger() {
+    try {
+      const s = JSON.parse(localStorage.getItem('statjack-settings') || '{}');
+      for (const k in DEFAUTS) this._data[k] = (k in s) ? s[k] : DEFAUTS[k];
+    } catch (e) { this._data = { ...DEFAUTS }; }
+  },
+  sauvegarder() { localStorage.setItem('statjack-settings', JSON.stringify(this._data)); },
+  get(k) { return this._data[k]; },
+  set(k, v) { this._data[k] = v; this.sauvegarder(); }
+};
+settings.charger();
+
+const banque = {
+  get solde() { return settings.get('argent'); },
+  placerMise(m) {
+    if (m <= 0 || m > this.solde) return false;
+    settings.set('argent', this.solde - m);
+    return true;
+  },
+  payer(m) { settings.set('argent', this.solde + m); },
+  reset() { settings.set('argent', DEFAUTS.argent); }
+};
+
+/* ---------------- Jeu ---------------- */
+class Jeu {
+  constructor(nbPaquets) {
+    this.sabot = new Sabot(nbPaquets);
+    this.dealer = new Main();
+    this.mains = [new Main()];
+    this.indexActif = 0;
+    this.misePrincipale = 0;
+    this.mancheEnCours = false;
+  }
+  get joueur() { return this.mains[this.indexActif]; }
+  demarrerManche() {
+    this.dealer = new Main();
+    const m = new Main();
+    m.mise = this.misePrincipale;
+    this.mains = [m];
+    this.indexActif = 0;
+    if (this.sabot.cartesRestantes() < 20) this.sabot.initialiser();
+    m.ajouter(this.sabot.tirer());
+    this.dealer.ajouter(this.sabot.tirer());
+    m.ajouter(this.sabot.tirer());
+    this.dealer.ajouter(this.sabot.tirer());
+    this.mancheEnCours = true;
+  }
+  joueurTire() { const c = this.sabot.tirer(); this.joueur.ajouter(c); return c; }
+  joueurDouble() {
+    if (!this.joueur.peutDouble()) return null;
+    if (!banque.placerMise(this.joueur.mise)) return null;
+    this.joueur.mise *= 2;
+    this.joueur.estDouble = true;
+    const c = this.sabot.tirer();
+    this.joueur.ajouter(c);
+    return c;
+  }
+  joueurSplit() {
+    const main = this.joueur;
+    if (!main.peutSplit()) return false;
+    if (!banque.placerMise(main.mise)) return false;
+    const splitAs = main.cartes[0].rang === 'A';
+    const retiree = main.retirer();
+    const nouvelle = new Main();
+    nouvelle.mise = main.mise;
+    nouvelle.ajouter(retiree);
+    main.ajouter(this.sabot.tirer());
+    nouvelle.ajouter(this.sabot.tirer());
+    if (splitAs) { main.mainFermee = true; nouvelle.mainFermee = true; }
+    this.mains.splice(this.indexActif + 1, 0, nouvelle);
+    return true;
+  }
+  passerMainSuivante() {
+    if (this.indexActif < this.mains.length - 1) { this.indexActif++; return true; }
+    return false;
+  }
+  tourDuDealer() {
+    while (this.dealer.valeurTotale() < 17) this.dealer.ajouter(this.sabot.tirer());
+  }
+  calculerResultats() {
+    this.tourDuDealer();
+    const scoreD = this.dealer.valeurTotale();
+    const dealerBJ = this.dealer.estBlackjack();
+    let totalGains = 0;
+    const resultats = [];
+    for (const main of this.mains) {
+      const scoreJ = main.valeurTotale();
+      const joueurBJ = main.estBlackjack() && this.mains.length === 1;
+      let res, gain;
+      if (main.estBusted())              { res = 'Perdu (Bust)'; gain = 0; }
+      else if (joueurBJ && dealerBJ)     { res = 'Égalité (Push)'; gain = main.mise; }
+      else if (joueurBJ)                 { res = 'Blackjack!'; gain = main.mise + Math.floor(main.mise * 1.5); }
+      else if (dealerBJ)                 { res = 'Perdu (BJ croupier)'; gain = 0; }
+      else if (scoreD > 21)              { res = 'Gagné (Croupier bust)'; gain = main.mise * 2; }
+      else if (scoreJ > scoreD)          { res = 'Gagné'; gain = main.mise * 2; }
+      else if (scoreJ < scoreD)          { res = 'Perdu'; gain = 0; }
+      else                               { res = 'Égalité (Push)'; gain = main.mise; }
+      totalGains += gain;
+      main.resultat = res;
+      resultats.push(res);
+    }
+    if (totalGains > 0) banque.payer(totalGains);
+    this.mancheEnCours = false;
+    return resultats;
+  }
+}
+
+/* ---------------- Probabilités (port de probabilites.py) ---------------- */
+const Probas = {
+  /* tirage aléatoire sans remise dans un tableau de valeurs (swap-pop) */
+  _tirerVal(vals) {
+    if (vals.length === 0) return null;
+    const i = Math.floor(Math.random() * vals.length);
+    const v = vals[i];
+    vals[i] = vals[vals.length - 1];
+    vals.pop();
+    return v;
+  },
+  _etatApres(total, soft, valeur) {
+    let t = total + valeur, s = soft + (valeur === 11 ? 1 : 0);
+    while (t > 21 && s > 0) { t -= 10; s--; }
+    return [t, s];
+  },
+  distributionProchaine(vals) {
+    const n = vals.length;
+    if (n === 0) return {};
+    const cnt = {};
+    for (const v of vals) cnt[v] = (cnt[v] || 0) + 1;
+    const dist = {};
+    for (const v of Object.keys(cnt).map(Number).sort((a, b) => a - b)) dist[v] = cnt[v] / n;
+    return dist;
+  },
+  distributionSiHit(main, vals) {
+    const distV = this.distributionProchaine(vals);
+    const [total, soft] = main.etat();
+    const dist = {};
+    for (const v in distV) {
+      const [nt] = this._etatApres(total, soft, Number(v));
+      const key = nt > 21 ? 'bust' : nt;
+      dist[key] = (dist[key] || 0) + distV[v];
+    }
+    return dist;
+  },
+  dealerDistribution(vals, upcardVal, nSims = 3000) {
+    const outcomes = {};
+    for (let s = 0; s < nSims; s++) {
+      const pool = vals.slice();
+      let [t, soft] = this._etatApres(0, 0, upcardVal);
+      const hole = this._tirerVal(pool);
+      if (hole === null) continue;
+      [t, soft] = this._etatApres(t, soft, hole);
+      while (t < 17) {
+        const c = this._tirerVal(pool);
+        if (c === null) break;
+        [t, soft] = this._etatApres(t, soft, c);
+      }
+      const key = t > 21 ? 'bust' : t;
+      outcomes[key] = (outcomes[key] || 0) + 1;
+    }
+    let total = 0;
+    for (const k in outcomes) total += outcomes[k];
+    if (total === 0) total = 1;
+    const dist = {};
+    for (const k in outcomes) dist[k] = outcomes[k] / total;
+    return dist;
+  },
+  evStand(totalJoueur, dealerDist) {
+    let ev = (dealerDist['bust'] || 0) * 1.0;
+    for (const r of [17, 18, 19, 20, 21]) {
+      const p = dealerDist[r] || 0;
+      if (totalJoueur > r) ev += p;
+      else if (totalJoueur < r) ev -= p;
+    }
+    return ev;
+  },
+  evHitRecursif(total, soft, counts, dealerDist, memo) {
+    if (total > 21) return -1.0;
+    const key = total + '|' + soft + '|' + Object.keys(counts).sort((a, b) => a - b).map(k => k + ':' + counts[k]).join(',');
+    if (key in memo) return memo[key];
+    const evStand = this.evStand(total, dealerDist);
+    /* Coupures logiques identiques au modèle Python */
+    if ((total >= 19 && soft === 0) || total >= 20) { memo[key] = evStand; return evStand; }
+    let restantes = 0;
+    for (const v in counts) restantes += counts[v];
+    if (restantes === 0) { memo[key] = evStand; return evStand; }
+    let evHit = 0;
+    for (const vk of Object.keys(counts)) {
+      const nb = counts[vk];
+      if (nb <= 0) continue;
+      const proba = nb / restantes;
+      const [nt, ns] = this._etatApres(total, soft, Number(vk));
+      counts[vk] -= 1;
+      if (counts[vk] === 0) delete counts[vk];
+      evHit += proba * this.evHitRecursif(nt, ns, counts, dealerDist, memo);
+      counts[vk] = nb;
+    }
+    const evOpt = Math.max(evStand, evHit);
+    memo[key] = evOpt;
+    return evOpt;
+  },
+  evOptimal(main, vals, dealerDist) {
+    const [total, soft] = main.etat();
+    const counts = {};
+    for (const v of vals) counts[v] = (counts[v] || 0) + 1;
+    return this.evHitRecursif(total, soft, counts, dealerDist, {});
+  },
+  resumeSpot(main, dealerUpcard, sabot, holeCard) {
+    const vals = sabot.valeursVueJoueur(holeCard);
+    const distHit = this.distributionSiHit(main, vals);
+    const pBust = distHit['bust'] || 0;
+    const t = main.valeurTotale();
+    let pAmeliorer = 0;
+    for (const k in distHit)
+      if (k !== 'bust' && t < Number(k) && Number(k) <= 21) pAmeliorer += distHit[k];
+    const dealerDist = this.dealerDistribution(vals, dealerUpcard.v);
+    const evStand = this.evStand(t, dealerDist);
+    const evOpt = this.evOptimal(main, vals, dealerDist);
+    return {
+      pBust, pAmeliorer, dealerDist, evStand, evOpt,
+      reco: evOpt > evStand ? 'HIT' : 'STAND'
+    };
+  },
+  /* Monte Carlo par action (port de simuler_monte_carlo) */
+  monteCarloActions(main, dealer, sabot, holeCard, nSims = 1200) {
+    if (!dealer.cartes.length || !main.cartes.length) return {};
+    const valsBase = sabot.valeursVueJoueur(holeCard);
+    const actions = ['Stand', 'Hit'];
+    if (main.peutDouble()) actions.push('Double');
+    const [t0, s0] = main.etat();
+    const nb0 = main.cartes.length;
+    const upVal = dealer.cartes[0].v;
+    const stats = {};
+    for (const action of actions) {
+      let vict = 0, def = 0, ega = 0, gain = 0;
+      const mult = action === 'Double' ? 2 : 1;
+      for (let s = 0; s < nSims; s++) {
+        const pool = valsBase.slice();
+        let t = t0, soft = s0, nbCartes = nb0;
+        if (action === 'Hit' || action === 'Double') {
+          const c = this._tirerVal(pool);
+          if (c !== null) { [t, soft] = this._etatApres(t, soft, c); nbCartes++; }
+        }
+        if (t > 21) { def++; gain -= mult; continue; }
+        let [td, sd] = this._etatApres(0, 0, upVal);
+        let nbD = 1;
+        const hole = this._tirerVal(pool);
+        if (hole === null) continue;
+        [td, sd] = this._etatApres(td, sd, hole);
+        nbD++;
+        while (td < 17) {
+          const c = this._tirerVal(pool);
+          if (c === null) break;
+          [td, sd] = this._etatApres(td, sd, c);
+          nbD++;
+        }
+        const bjJ = nbCartes === 2 && t === 21;
+        const bjD = nbD === 2 && td === 21;
+        if (bjJ && bjD) ega++;
+        else if (bjJ) { vict++; gain += 1.5; }
+        else if (bjD) { def++; gain -= mult; }
+        else if (td > 21 || t > td) { vict++; gain += mult; }
+        else if (t < td) { def++; gain -= mult; }
+        else ega++;
+      }
+      stats[action] = {
+        winrate: vict / nSims * 100,
+        lossrate: def / nSims * 100,
+        pushrate: ega / nSims * 100,
+        ev: gain / nSims
+      };
+    }
+    return stats;
+  },
+  /* port de simuler_mains — convergence des gains */
+  simulerMains(sabot, nSims = 1000) {
+    const gainsCumules = [];
+    let total = 0;
+    for (let i = 0; i < nSims; i++) {
+      const pool = sabot.cartes.map(c => c.v);
+      let [tj, sj] = [0, 0], nbJ = 0;
+      let [td, sd] = [0, 0];
+      for (let k = 0; k < 2; k++) {
+        [tj, sj] = this._etatApres(tj, sj, this._tirerVal(pool)); nbJ++;
+        [td, sd] = this._etatApres(td, sd, this._tirerVal(pool));
+      }
+      while (tj < 17) { [tj, sj] = this._etatApres(tj, sj, this._tirerVal(pool)); nbJ++; }
+      while (td < 17) { [td, sd] = this._etatApres(td, sd, this._tirerVal(pool)); }
+      let gain;
+      if (tj > 21) gain = -1;
+      else if (nbJ === 2 && tj === 21) gain = 1.5;
+      else if (td > 21) gain = 1;
+      else if (tj > td) gain = 1;
+      else if (tj < td) gain = -1;
+      else gain = 0;
+      total += gain;
+      gainsCumules.push(total / (i + 1));
+    }
+    return gainsCumules;
+  }
+};
+
+/* ---------------- Audio (WebAudio, léger) ---------------- */
+const audio = {
+  ctx: null,
+  _ensure() {
+    if (!settings.get('sons')) return null;
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      this.ctx = new AC();
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  },
+  _tone(freq, dur, type = 'sine', vol = 0.15, delay = 0) {
+    const ctx = this._ensure();
+    if (!ctx) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + dur);
+  },
+  carte() { this._tone(1400, 0.05, 'triangle', 0.08); },
+  shuffle() { for (let i = 0; i < 5; i++) this._tone(900 + i * 120, 0.04, 'triangle', 0.05, i * 0.05); },
+  victoire() { [523, 659, 784, 1047].forEach((f, i) => this._tone(f, 0.22, 'sine', 0.14, i * 0.11)); },
+  defaite() { [330, 262, 196].forEach((f, i) => this._tone(f, 0.3, 'sine', 0.12, i * 0.16)); }
+};
+
+/* ---------------- UI / Contrôleur ---------------- */
+const $ = id => document.getElementById(id);
+const PHASE = { MISE: 0, JEU: 1, RESULTAT: 2 };
+
+let jeu = new Jeu(settings.get('nb_paquets'));
+let phase = PHASE.MISE;
+let miseCourante = 0;
+let derniereMise = 0;
+let idCalcul = 0;
+let derniereReco = null;
+let actionEnAttente = null;
+let ignorerVerifEntrainement = false;
+
+function fmtArgent(n) { return '$ ' + n.toLocaleString('fr-CA'); }
+function fmtPct(x) { return (x * 100).toFixed(1) + ' %'; }
+
+function elCarte(c, cachee = false) {
+  const div = document.createElement('div');
+  if (cachee) { div.className = 'card back'; return div; }
+  const rouge = c.couleur === '♥' || c.couleur === '♦';
+  div.className = 'card' + (rouge ? ' red' : '');
+  div.innerHTML = `<div class="corner">${c.rang}<small>${c.couleur}</small></div><div class="pip">${c.couleur}</div>`;
+  return div;
+}
+
+function setPhase(p) {
+  phase = p;
+  $('betArea').classList.toggle('hidden', p !== PHASE.MISE);
+  $('betBar').classList.toggle('hidden', p !== PHASE.MISE);
+  $('actionsBar').classList.toggle('hidden', p !== PHASE.JEU);
+  $('resultBar').classList.toggle('hidden', p !== PHASE.RESULTAT);
+}
+
+function rafraichir(reveler) {
+  const entrainement = settings.get('mode_entrainement');
+  $('statsPanel').classList.toggle('hidden', entrainement || phase === PHASE.MISE);
+
+  /* Dealer */
+  const dz = $('dealerCards');
+  dz.innerHTML = '';
+  jeu.dealer.cartes.forEach((c, i) => dz.appendChild(elCarte(c, !reveler && i === 1)));
+  if (jeu.dealer.cartes.length) {
+    const visible = reveler
+      ? jeu.dealer.valeurTotale()
+      : jeu.dealer.cartes[0].v;
+    $('lblDealer').textContent = `Croupier — ${reveler ? visible : visible + ' + ?'}`;
+  } else {
+    $('lblDealer').textContent = 'Croupier';
+  }
+
+  /* Joueur (mains multiples) */
+  const pz = $('playerHands');
+  pz.innerHTML = '';
+  jeu.mains.forEach((m, i) => {
+    if (!m.cartes.length) return;
+    const box = document.createElement('div');
+    box.className = 'hand-box' + (i === jeu.indexActif && jeu.mancheEnCours ? ' active' : '');
+    const row = document.createElement('div');
+    row.className = 'cards-row';
+    row.style.minHeight = '78px';
+    m.cartes.forEach(c => row.appendChild(elCarte(c)));
+    box.appendChild(row);
+    const tot = document.createElement('div');
+    tot.className = 'hand-total';
+    tot.textContent = `${m.valeurTotale()}${m.estDouble ? ' (×2)' : ''}${m.mainFermee ? ' 🔒' : ''} — mise ${m.mise}`;
+    box.appendChild(tot);
+    if (m.resultat) {
+      const r = document.createElement('div');
+      r.className = 'hand-result';
+      r.textContent = m.resultat;
+      box.appendChild(r);
+    }
+    box.scrollIntoView && i === jeu.indexActif && box.scrollIntoView({ inline: 'center', block: 'nearest' });
+    pz.appendChild(box);
+  });
+  $('lblJoueur').textContent = jeu.mains.length > 1
+    ? `Vous — main ${jeu.indexActif + 1}/${jeu.mains.length}`
+    : 'Vous';
+
+  $('bank').textContent = fmtArgent(banque.solde);
+
+  /* Comptage Hi-Lo */
+  const sabot = jeu.sabot;
+  const tc = sabot.trueCount();
+  $('rc').textContent = (sabot.runningCount > 0 ? '+' : '') + sabot.runningCount;
+  $('tc').textContent = (tc > 0 ? '+' : '') + tc.toFixed(1);
+  $('cartesRestantes').textContent = `${sabot.cartesRestantes()}/${sabot.nbPaquets * 52}`;
+  const avantage = -0.5 + tc * 0.5;
+  $('avantage').textContent = (avantage > 0 ? '+' : '') + avantage.toFixed(2) + '%';
+  $('avantage').style.color = avantage > 0 ? '#66bb6a' : '#ef9a9a';
+
+  /* Probabilités */
+  if (!reveler && jeu.mancheEnCours && jeu.dealer.cartes.length) {
+    lancerCalculProbas();
+  } else {
+    viderProbas();
+  }
+
+  /* Boutons */
+  if (!reveler && jeu.mancheEnCours) {
+    const j = jeu.joueur;
+    const peutJouer = j.valeurTotale() < 21 && !j.estBusted() && !j.mainFermee;
+    $('btnHit').disabled = !peutJouer;
+    $('btnStand').disabled = !peutJouer;
+    if (entrainement) {
+      $('btnDouble').disabled = true;
+      $('btnSplit').disabled = true;
+    } else {
+      $('btnDouble').disabled = !(peutJouer && j.peutDouble() && banque.solde >= j.mise);
+      $('btnSplit').disabled = !(peutJouer && j.peutSplit() && banque.solde >= j.mise);
+    }
+  } else {
+    ['btnHit', 'btnStand', 'btnDouble', 'btnSplit'].forEach(b => $(b).disabled = true);
+  }
+}
+
+function viderProbas() {
+  idCalcul++;
+  derniereReco = null;
+  $('pBust').textContent = '--';
+  $('pAmeliorer').textContent = '--';
+  $('reco').textContent = '--';
+  $('reco').className = '';
+  $('edge').textContent = '--';
+  $('evStand').textContent = '--';
+  $('evOpt').textContent = '--';
+  $('barBust').firstElementChild.style.width = '0';
+  $('barAmeliorer').firstElementChild.style.width = '0';
+  $('mcWrap').innerHTML = '';
+}
+
+function lancerCalculProbas() {
+  derniereReco = null;
+  const id = ++idCalcul;
+  $('reco').textContent = '…';
+  /* on cède la main au navigateur pour garder l'UI fluide */
+  setTimeout(() => {
+    if (id !== idCalcul) return;
+    const main = jeu.joueur;
+    const upcard = jeu.dealer.cartes[0];
+    const hole = jeu.dealer.cartes[1] || null;
+    let spot, mc;
+    try {
+      spot = Probas.resumeSpot(main, upcard, jeu.sabot, hole);
+      mc = Probas.monteCarloActions(main, jeu.dealer, jeu.sabot, hole);
+    } catch (e) { viderProbas(); return; }
+    if (id !== idCalcul) return;
+    derniereReco = spot.reco;
+
+    $('pBust').textContent = fmtPct(spot.pBust);
+    $('pAmeliorer').textContent = fmtPct(spot.pAmeliorer);
+    $('barBust').firstElementChild.style.width = (spot.pBust * 100) + '%';
+    $('barAmeliorer').firstElementChild.style.width = (spot.pAmeliorer * 100) + '%';
+    $('reco').textContent = spot.reco;
+    $('reco').className = spot.reco === 'HIT' ? 'hit' : 'stand';
+    $('evStand').textContent = (spot.evStand >= 0 ? '+' : '') + spot.evStand.toFixed(3);
+    $('evOpt').textContent = (spot.evOpt >= 0 ? '+' : '') + spot.evOpt.toFixed(3);
+    const edge = (spot.evOpt - spot.evStand) * 100;
+    $('edge').textContent = (edge >= 0 ? '+' : '') + edge.toFixed(1) + ' %';
+
+    let html = '<table class="mc-table"><tr><th>Action</th><th>Win</th><th>Push</th><th>Loss</th><th>EV</th></tr>';
+    for (const a of ['Stand', 'Hit', 'Double']) {
+      if (!mc[a]) continue;
+      html += `<tr><td>${a}</td><td>${mc[a].winrate.toFixed(1)}%</td><td>${mc[a].pushrate.toFixed(1)}%</td><td>${mc[a].lossrate.toFixed(1)}%</td><td>${(mc[a].ev >= 0 ? '+' : '') + mc[a].ev.toFixed(3)}</td></tr>`;
+    }
+    html += '</table>';
+    $('mcWrap').innerHTML = html;
+
+    /* action mise en attente par le mode entraînement */
+    if (actionEnAttente !== null) {
+      const action = actionEnAttente;
+      actionEnAttente = null;
+      verifierDecision(action, () => {
+        ignorerVerifEntrainement = true;
+        if (action === 'Hit') actionHit();
+        else if (action === 'Stand') actionStand();
+        ignorerVerifEntrainement = false;
+      });
+    }
+  }, 30);
+}
+
+/* ------- Mode entraînement : interception des décisions ------- */
+function verifierDecision(action, proceed) {
+  if (derniereReco === null) {
+    actionEnAttente = action;
+    $('msg').textContent = 'Calcul de la recommandation en cours…';
+    return;
+  }
+  if (derniereReco.toLowerCase().includes(action.toLowerCase())) {
+    $('msg').textContent = '';
+    proceed();
+    return;
+  }
+  $('trainText').innerHTML =
+    `Vous avez choisi <b>${action.toUpperCase()}</b>, mais l'analyse mathématique (EV) recommande <b>${derniereReco}</b>.<br><br>` +
+    `L'Espérance Mathématique compare le gain moyen à long terme de chaque action selon la composition exacte du sabot. ` +
+    `Jouer contre l'EV augmente l'avantage de la maison.`;
+  $('trainModal').classList.add('open');
+  $('trainProceed').onclick = () => { $('trainModal').classList.remove('open'); proceed(); };
+  $('trainCancel').onclick = () => { $('trainModal').classList.remove('open'); };
+}
+
+/* ------- Actions de jeu (port du contrôleur) ------- */
+function avancerMainsNonJouables() {
+  while (jeu.mancheEnCours && (jeu.joueur.valeurTotale() >= 21 || jeu.joueur.mainFermee)) {
+    if (!jeu.passerMainSuivante()) { finirManche(); return true; }
+  }
+  return false;
+}
+
+function actionHit() {
+  if (!jeu.mancheEnCours || jeu.joueur.estBusted()) return;
+  if (settings.get('mode_entrainement') && !ignorerVerifEntrainement) {
+    verifierDecision('Hit', () => { ignorerVerifEntrainement = true; actionHit(); ignorerVerifEntrainement = false; });
+    return;
+  }
+  const c = jeu.joueurTire();
+  if (!c) return;
+  audio.carte();
+  if (jeu.joueur.valeurTotale() >= 21) {
+    if (!jeu.passerMainSuivante()) finirManche();
+    else { if (!avancerMainsNonJouables()) rafraichir(false); }
+  } else {
+    rafraichir(false);
+  }
+}
+
+function actionStand() {
+  if (!jeu.mancheEnCours || jeu.joueur.estBusted()) return;
+  if (settings.get('mode_entrainement') && !ignorerVerifEntrainement) {
+    verifierDecision('Stand', () => { ignorerVerifEntrainement = true; actionStand(); ignorerVerifEntrainement = false; });
+    return;
+  }
+  if (!jeu.passerMainSuivante()) { finirManche(); return; }
+  if (avancerMainsNonJouables()) return;
+  rafraichir(false);
+}
+
+function actionDouble() {
+  if (!jeu.mancheEnCours || jeu.joueur.estBusted() || !jeu.joueur.peutDouble()) return;
+  const c = jeu.joueurDouble();
+  if (!c) return;
+  audio.carte();
+  if (jeu.joueur.estBusted()) {
+    if (!jeu.passerMainSuivante()) finirManche();
+    else { if (!avancerMainsNonJouables()) rafraichir(false); }
+  } else {
+    if (!jeu.passerMainSuivante()) { finirManche(); return; }
+    if (avancerMainsNonJouables()) return;
+    rafraichir(false);
+  }
+}
+
+function actionSplit() {
+  if (!jeu.mancheEnCours || jeu.joueur.estBusted() || !jeu.joueur.peutSplit()) return;
+  if (!jeu.joueurSplit()) return;
+  audio.carte();
+  if (avancerMainsNonJouables()) return;
+  rafraichir(false);
+}
+
+function finirManche() {
+  const resultats = jeu.calculerResultats();
+  $('msg').textContent = resultats.join(' | ');
+  setPhase(PHASE.RESULTAT);
+  rafraichir(true);
+  const aGagne = resultats.some(r => r === 'Gagné' || r === 'Gagné (Croupier bust)' || r === 'Blackjack!');
+  const aPerdu = resultats.some(r => r.startsWith('Perdu'));
+  const body = $('body');
+  body.classList.remove('pulse-win', 'pulse-lose');
+  void body.offsetWidth;
+  if (aGagne) { body.classList.add('pulse-win'); audio.victoire(); }
+  else if (aPerdu) { body.classList.add('pulse-lose'); audio.defaite(); }
+}
+
+function actionMiser() {
+  if (jeu.mancheEnCours) return;
+  if (miseCourante <= 0) { $('msg').textContent = 'Placez une mise !'; return; }
+  if (!banque.placerMise(miseCourante)) { $('msg').textContent = 'Fonds insuffisants !'; return; }
+  jeu.misePrincipale = miseCourante;
+  derniereMise = miseCourante;
+  jeu.demarrerManche();
+  audio.shuffle();
+  $('msg').textContent = '';
+  setPhase(PHASE.JEU);
+  rafraichir(false);
+  if (jeu.joueur.estBlackjack()) finirManche();
+}
+
+function prochaineManche() {
+  derniereReco = null;
+  actionEnAttente = null;
+  setPhase(PHASE.MISE);
+  $('msg').textContent = '';
+  miseCourante = 0;
+  $('betAmount').textContent = '0';
+  jeu.mains.forEach(m => m.resultat = null);
+  jeu.dealer = new Main();
+  jeu.mains = [new Main()];
+  jeu.indexActif = 0;
+  rafraichir(false);
+}
+
+/* ------- Graphe de simulation ------- */
+function dessinerGraphe() {
+  const cv = $('graphe');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  const data = Probas.simulerMains(jeu.sabot, 1000);
+  let mn = Math.min(...data, -0.1), mx = Math.max(...data, 0.1);
+  const pad = 34;
+  const x = i => pad + (W - pad - 10) * i / (data.length - 1);
+  const y = v => H - pad - (H - pad - 12) * (v - mn) / (mx - mn);
+  /* axes */
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, 8); ctx.lineTo(pad, H - pad); ctx.lineTo(W - 8, H - pad); ctx.stroke();
+  /* ligne zéro */
+  ctx.strokeStyle = 'rgba(212,175,55,.5)';
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.moveTo(pad, y(0)); ctx.lineTo(W - 8, y(0)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,.6)';
+  ctx.font = '13px sans-serif';
+  ctx.fillText('0', pad - 14, y(0) + 4);
+  ctx.fillText(mx.toFixed(2), 2, y(mx) + 10);
+  ctx.fillText(mn.toFixed(2), 2, y(mn));
+  /* courbe */
+  ctx.strokeStyle = '#4fc3f7';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((v, i) => i === 0 ? ctx.moveTo(x(i), y(v)) : ctx.lineTo(x(i), y(v)));
+  ctx.stroke();
+  /* valeur finale */
+  ctx.fillStyle = '#4fc3f7';
+  ctx.fillText(`EV ≈ ${data[data.length - 1].toFixed(3)} / main`, W - 160, 20);
+}
+
+/* ------- Branchement des événements ------- */
+$('btnHit').onclick = actionHit;
+$('btnStand').onclick = actionStand;
+$('btnDouble').onclick = actionDouble;
+$('btnSplit').onclick = actionSplit;
+$('btnDeal').onclick = actionMiser;
+$('btnNext').onclick = prochaineManche;
+$('btnClear').onclick = () => { miseCourante = 0; $('betAmount').textContent = '0'; };
+$('betCircle').onclick = () => { miseCourante = 0; $('betAmount').textContent = '0'; };
+$('btnRebet').onclick = () => {
+  if (derniereMise > 0) { miseCourante = derniereMise; $('betAmount').textContent = miseCourante; }
+};
+document.querySelectorAll('.chip').forEach(ch => {
+  ch.onclick = () => {
+    const v = Number(ch.dataset.v);
+    if (miseCourante + v > banque.solde) { $('msg').textContent = 'Fonds insuffisants !'; return; }
+    miseCourante += v;
+    $('msg').textContent = '';
+    $('betAmount').textContent = miseCourante;
+    audio.carte();
+  };
+});
+
+/* Paramètres */
+$('btnSettings').onclick = () => {
+  $('setPaquets').value = String(settings.get('nb_paquets'));
+  $('setSons').checked = settings.get('sons');
+  $('setEntrainement').checked = settings.get('mode_entrainement');
+  $('settingsModal').classList.add('open');
+};
+$('settingsClose').onclick = () => {
+  const nb = Number($('setPaquets').value);
+  if (nb !== settings.get('nb_paquets')) {
+    settings.set('nb_paquets', nb);
+    if (!jeu.mancheEnCours) { jeu = new Jeu(nb); prochaineManche(); }
+  }
+  settings.set('sons', $('setSons').checked);
+  settings.set('mode_entrainement', $('setEntrainement').checked);
+  $('settingsModal').classList.remove('open');
+  rafraichir(phase === PHASE.RESULTAT);
+};
+$('btnResetBanque').onclick = () => { banque.reset(); $('bank').textContent = fmtArgent(banque.solde); };
+
+/* Graphe */
+$('btnGraphe').onclick = () => { $('grapheModal').classList.add('open'); dessinerGraphe(); };
+$('grapheRelancer').onclick = dessinerGraphe;
+$('grapheClose').onclick = () => $('grapheModal').classList.remove('open');
+
+/* Service worker (mode hors-ligne / installation) */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
+/* Démarrage */
+setPhase(PHASE.MISE);
+rafraichir(false);
+</script>
+</body>
+</html>
