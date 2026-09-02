@@ -153,6 +153,7 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 def cmd_sync_push(args: argparse.Namespace) -> int:
+    from planner.core.errors import UnpulledChangesError
     from planner.storage.pg import connect_pg
     from planner.sync import push
 
@@ -162,9 +163,16 @@ def cmd_sync_push(args: argparse.Namespace) -> int:
     backup_database(args.db)  # copie de sûreté avant toute synchronisation
     sqlite_conn = connect(args.db)
     pg_conn = connect_pg()
-    counters = push(sqlite_conn, pg_conn)
-    pg_conn.close()
-    sqlite_conn.close()
+    try:
+        counters = push(sqlite_conn, pg_conn, force=args.force)
+    except UnpulledChangesError as exc:
+        print(f"PUSH REFUSÉ : {len(exc.block_ids)} bloc(s) coché(s) côté web non "
+              "rapatriés. Lancer `sync-pull` d'abord, ou `sync-push --force` "
+              "pour les écraser.", file=sys.stderr)
+        return 2
+    finally:
+        pg_conn.close()
+        sqlite_conn.close()
     total = sum(counters.values())
     detail = " · ".join(f"{table} {count}" for table, count in counters.items())
     print(f"Push SQLite → Postgres : {total} ligne(s) copiée(s) ({detail})")
@@ -207,6 +215,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_push = sub.add_parser(
         "sync-push", help="répliquer la base SQLite vers Postgres (copie web)"
+    )
+    p_push.add_argument(
+        "--force", action="store_true",
+        help="écraser les statuts cochés côté web non rapatriés par sync-pull",
     )
     p_push.set_defaults(func=cmd_sync_push)
 

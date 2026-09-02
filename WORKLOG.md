@@ -4,6 +4,25 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 8d : push refusé si des statuts web attendent un pull
+
+- `sync.unpulled_changes(sqlite_conn, pg_conn)` : id des blocs dont
+  status/actual_minutes/efficiency/note diffèrent entre les deux bases (appariement
+  par id, blocs absents d'un côté ignorés).
+- `sync.push(..., force=False)` : si des changements non rapatriés existent, lève
+  `UnpulledChangesError` (nouvelle exception dans `core/errors.py`, porte la liste
+  des id) **avant tout TRUNCATE** — un push oublié ne détruit plus en silence ce qui
+  a été coché sur mobile. `force=True` passe outre.
+- CLI `sync-push` : attrape l'exception, affiche le nombre de blocs concernés,
+  code de sortie 2 ; option `--force` ajoutée.
+- Tests : push refusé avec Postgres strictement intact (statut coché compris),
+  `--force` passe outre, push propre passe sans force. Découverte en test : le
+  premier push d'une session refuse légitimement les restes du run précédent — le
+  push initial du test est donc `force=True` (réplique initiale faisant autorité).
+- 118 tests verts (7 sync), ruff propre.
+
+---
+
 ## 2026-09-02 — Phase 8c : synchronisation SQLite <-> Postgres
 
 - `sync.py` : `push` (réplique intégrale SQLite → Postgres, transaction unique

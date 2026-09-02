@@ -38,8 +38,39 @@ def _columns(sqlite_conn, table: str) -> list[str]:
     return [r[0] for r in rows]
 
 
-def push(sqlite_conn, pg_conn) -> dict[str, int]:
-    """Réplique SQLite -> Postgres. Retourne le nombre de lignes copiées par table."""
+def unpulled_changes(sqlite_conn, pg_conn) -> list[int]:
+    """Id des blocs dont les champs de statut diffèrent entre Postgres et SQLite.
+
+    Comparaison par id ; les blocs absents d'un côté sont ignorés (ils relèvent de la
+    réplique normale, pas d'un statut coché en attente).
+    """
+    columns = ", ".join(("id",) + PULL_COLUMNS)
+    pg_rows = {
+        r[0]: tuple(r[1:])
+        for r in pg_conn.execute(f"SELECT {columns} FROM study_blocks").fetchall()
+    }
+    sqlite_rows = {
+        r[0]: tuple(r[1:])
+        for r in sqlite_conn.execute(f"SELECT {columns} FROM study_blocks").fetchall()
+    }
+    return sorted(
+        block_id for block_id in pg_rows.keys() & sqlite_rows.keys()
+        if pg_rows[block_id] != sqlite_rows[block_id]
+    )
+
+
+def push(sqlite_conn, pg_conn, force: bool = False) -> dict[str, int]:
+    """Réplique SQLite -> Postgres. Retourne le nombre de lignes copiées par table.
+
+    Refuse (UnpulledChangesError, AVANT tout TRUNCATE) d'écraser des statuts cochés
+    côté web et pas encore rapatriés par pull — sauf force=True.
+    """
+    if not force:
+        pending = unpulled_changes(sqlite_conn, pg_conn)
+        if pending:
+            from planner.core.errors import UnpulledChangesError
+
+            raise UnpulledChangesError(pending)
     counters: dict[str, int] = {}
     with pg_conn:  # transaction unique : tout ou rien
         pg_conn.execute(

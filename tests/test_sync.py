@@ -82,7 +82,9 @@ def pg_conn():
 def test_push_replicates_counts_and_ids(sqlite_conn, pg_conn):
     from planner.sync import TABLES_IN_DEPENDENCY_ORDER, push
 
-    counters = push(sqlite_conn, pg_conn)
+    # force=True : la base de test peut contenir les restes d'un run précédent, que le
+    # garde-fou anti-écrasement (testé plus bas) refuserait légitimement d'effacer.
+    counters = push(sqlite_conn, pg_conn, force=True)
     assert counters["courses"] == 4
     assert counters["evaluations"] == 28
     assert counters["study_blocks"] > 100
@@ -153,3 +155,39 @@ def test_push_is_idempotent(sqlite_conn, pg_conn):
     assert state_one == state_two
     # et Postgres est bien l'exact reflet de SQLite (le bloc web surnuméraire a disparu)
     assert state_one == _snapshot(sqlite_conn)
+
+
+def test_push_refuses_unpulled_changes_and_leaves_pg_intact(sqlite_conn, pg_conn):
+    from planner.core.errors import UnpulledChangesError
+    from planner.storage import repositories as repos
+    from planner.sync import push, unpulled_changes
+
+    target = pg_conn.execute("SELECT id FROM study_blocks ORDER BY id").fetchone()[0]
+    repos.update_study_block_status(pg_conn, target, "skipped")
+    assert unpulled_changes(sqlite_conn, pg_conn) == [target]
+
+    before = _snapshot(pg_conn)
+    with pytest.raises(UnpulledChangesError) as exc:
+        push(sqlite_conn, pg_conn)
+    assert exc.value.block_ids == [target]
+    # aucun TRUNCATE même partiel : Postgres strictement intact, statut coché compris
+    assert _snapshot(pg_conn) == before
+    assert pg_conn.execute(
+        "SELECT status FROM study_blocks WHERE id = ?", (target,)
+    ).fetchone()[0] == "skipped"
+
+
+def test_force_push_overrides_unpulled_changes(sqlite_conn, pg_conn):
+    from planner.sync import push, unpulled_changes
+
+    assert unpulled_changes(sqlite_conn, pg_conn)  # le statut coché est toujours là
+    push(sqlite_conn, pg_conn, force=True)
+    assert unpulled_changes(sqlite_conn, pg_conn) == []
+    assert _snapshot(pg_conn) == _snapshot(sqlite_conn)
+
+
+def test_push_passes_when_nothing_unpulled(sqlite_conn, pg_conn):
+    from planner.sync import push
+
+    counters = push(sqlite_conn, pg_conn)  # sans force : rien en attente, doit passer
+    assert counters["study_blocks"] > 100
