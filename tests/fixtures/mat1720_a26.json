@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-09-01",
+  "source_file": "PlanMAT1720_Automne_2026.pdf",
+  "course": {
+    "code": "MAT1720",
+    "title": "Introduction aux probabilités",
+    "term": "A26",
+    "institution": null,
+    "credits": null,
+    "instructor": "Kamel Belbahri",
+    "language": "fr",
+    "difficulty": 3,
+    "effort_multiplier": 1.0,
+    "sessions": []
+  },
+  "evaluations": [
+    {
+      "id": "MAT1720-INTRA",
+      "title": "Intra",
+      "type": "examen_intra",
+      "weight": 40.0,
+      "due_date": "2026-10-28",
+      "due_time": "15:30",
+      "start_date": null,
+      "duration_minutes": 110,
+      "modality": "en_classe",
+      "location": "B-0215",
+      "cumulative": false,
+      "group_work": null,
+      "content_scope": ["Chapitres 1-4"],
+      "scope_units": 4,
+      "deliverable": null,
+      "estimated_pages": null,
+      "resources": ["Sheldon M. Ross, Initiation aux probabilités, 9ème édition, Presses polytechniques et universitaires romandes, 2014 (fortement recommandé)", "Notes de cours sur Studium"],
+      "notes": "Vérifier la salle le jour de l'examen.",
+      "confidence": "high",
+      "source_excerpt": "Intra Mercredi 28 octobre : 15h30-17h20 B-0215 Chapitres 1-4 40%"
+    },
+    {
+      "id": "MAT1720-FINAL",
+      "title": "Final",
+      "type": "examen_final",
+      "weight": 60.0,
+      "due_date": "2026-12-16",
+      "due_time": "12:30",
+      "start_date": null,
+      "duration_minutes": 170,
+      "modality": "en_classe",
+      "location": "B-0215",
+      "cumulative": true,
+      "group_work": null,
+      "content_scope": ["Cumulatif"],
+      "scope_units": 8,
+      "deliverable": null,
+      "estimated_pages": null,
+      "resources": ["Sheldon M. Ross, Initiation aux probabilités, 9ème édition, Presses polytechniques et universitaires romandes, 2014 (fortement recommandé)", "Notes de cours sur Studium"],
+      "notes": "Vérifier la salle le jour de l'examen. scope_units = 8 déduit de « Correspond aux 8 premiers chapitres du manuel » + matière cumulative.",
+      "confidence": "high",
+      "source_excerpt": "Final Mercredi 16 décembre : 12h30-15h20 B-0215 Cumulatif 60%"
+    }
+  ],
+  "totals": {
+    "declared_weight_sum": 100.0,
+    "evaluation_count": 2
+  },
+  "warnings": [
+    "Le nombre de crédits n'est pas mentionné dans le plan de cours.",
+    "L'horaire hebdomadaire des séances (cours, TP) n'apparaît pas dans le plan de cours : aucune session encodée.",
+    "scope_units du final (8) est déduit du contenu du cours (« les 8 premiers chapitres du manuel ») combiné à la mention « Cumulatif »."
+  ]
+}
