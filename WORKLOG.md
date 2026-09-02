@@ -4,6 +4,40 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 9 : API web + page mobile minimale
+
+- **Dépendances ajoutées** : `fastapi` + `uvicorn[standard]` (API mobile) dans
+  requirements.txt ; `httpx` (TestClient) dans requirements-dev.txt.
+  `requirements-web.txt` = dépendances de l'API SEULEMENT (sans PySide6), référencé par
+  `api/requirements.txt` — le runtime Python de Vercel installe le requirements situé
+  à côté de la fonction.
+- `web/api.py` (`create_app`, lancement local `uvicorn --factory planner.web.api:create_app`) :
+  - GET /api/health (sans auth) ; GET /api/week?offset= (blocs de la semaine avec code
+    du cours + titre d'évaluation, jointure SQL portable via substr) ;
+  - POST /api/blocks/{id}/status (Literal pydantic → 422 sur statut invalide, 404 si
+    bloc inconnu, retourne le bloc mis à jour) ;
+  - POST /api/recalculate : **APERÇU PUR, décision imposée** — jamais
+    d'apply_rebalance, rien d'écrit (un recalcul persistant créerait des orphelins que
+    sync-push détruirait) ; renvoie diff kept/moved/added/removed + semaine simulée.
+- Auth : PIN dans APP_PIN, en-tête X-App-Pin exigé partout sauf /api/health,
+  `secrets.compare_digest` ; sans APP_PIN, `create_app()` REFUSE de démarrer.
+- Connexions : une par requête (`connect_pg(migrate=False)`, fermée en finally) ;
+  nouvelle CLI `pg-migrate` pour migrer une fois au déploiement.
+- `web/static/index.html` : page unique sans framework ni CDN — PIN en sessionStorage,
+  semaine en liste par jour, gros boutons, Fait/Manqué/Partiel (minutes), navigation
+  semaine, Recalculer avec mention « aperçu, non enregistré » ; `manifest.json`
+  standalone (Ajouter à l'écran d'accueil), pas de service worker.
+- Vercel : `api/index.py` (sys.path + create_app) + `vercel.json` (rewrites vers la
+  fonction, includeFiles src/**). Non déployé.
+- `tests/test_api.py` (8 tests, sautés sans DATABASE_URL_TEST, seeding par sync.push
+  force=True) : health sans PIN, 401 sans/mauvais PIN, semaine étiquetée, 422 statut
+  invalide, statut persisté, 404 bloc inconnu, recalculate strictement sans effet
+  (mêmes id avant/après), page et manifest servis. **8/8 verts.**
+- Suite complète : **126 tests, exit 0** (le résumé final de pytest est avalé par la
+  console Windows, le code de sortie fait foi).
+
+---
+
 ## 2026-09-02 — Phase 8d : push refusé si des statuts web attendent un pull
 
 - `sync.unpulled_changes(sqlite_conn, pg_conn)` : id des blocs dont

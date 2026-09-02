@@ -152,6 +152,18 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pg_migrate(_args: argparse.Namespace) -> int:
+    from planner.storage.pg import SCHEMA_VERSION_PG, connect_pg
+
+    conn = connect_pg()  # migre par défaut
+    version = conn.execute(
+        "SELECT version FROM schema_version WHERE id = 1"
+    ).fetchone()[0]
+    conn.close()
+    print(f"Schéma Postgres à jour : version {version}/{SCHEMA_VERSION_PG}")
+    return 0
+
+
 def cmd_sync_push(args: argparse.Namespace) -> int:
     from planner.core.errors import UnpulledChangesError
     from planner.storage.pg import connect_pg
@@ -212,6 +224,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_export = sub.add_parser("export", help="exporter blocs et échéances en .ics")
     p_export.add_argument("--out", default="plan_etudes.ics", help="fichier de sortie")
     p_export.set_defaults(func=cmd_export)
+
+    p_migrate = sub.add_parser(
+        "pg-migrate", help="appliquer les migrations Postgres (une fois, au déploiement)"
+    )
+    p_migrate.set_defaults(func=cmd_pg_migrate)
 
     p_push = sub.add_parser(
         "sync-push", help="répliquer la base SQLite vers Postgres (copie web)"

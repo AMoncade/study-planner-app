@@ -53,6 +53,23 @@ L'exe range sa base dans `%LOCALAPPDATA%\PlanEtudes\plan_etudes.db`.
 **Mise à jour** : reconstruire l'exe puis remplacer l'ancien fichier — la base et les
 paramètres sont conservés (et migrés automatiquement si le schéma a évolué).
 
+## Web mobile (optionnel)
+
+Postgres (Supabase) sert de copie de travail pour cocher des blocs depuis un téléphone ;
+SQLite reste la source de vérité. `DATABASE_URL` et `APP_PIN` vont dans `.env` (jamais
+commité).
+
+```
+.venv/Scripts/python.exe -m planner pg-migrate     # une fois, au déploiement
+.venv/Scripts/python.exe -m planner sync-push      # répliquer SQLite -> Postgres
+.venv/Scripts/uvicorn.exe --factory planner.web.api:create_app   # API + page mobile
+.venv/Scripts/python.exe -m planner sync-pull      # rapatrier les statuts cochés
+```
+
+Le recalcul côté web est un **aperçu** : rien n'est enregistré depuis le téléphone à
+part les statuts de blocs. Déploiement Vercel : `api/index.py` + `vercel.json`
+(dépendances web sans PySide6 : `requirements-web.txt`).
+
 ## Tests
 
 ```

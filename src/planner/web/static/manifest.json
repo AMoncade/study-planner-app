@@ -1,0 +1,10 @@
+{
+  "name": "PlanEtudes",
+  "short_name": "PlanEtudes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e2126",
+  "theme_color": "#1e2126",
+  "description": "Planificateur d'études — semaine et statuts de blocs",
+  "icons": []
+}

@@ -5,3 +5,5 @@ python-dateutil>=2.9     # arithmétique de dates / récurrences
 icalendar>=6.0           # export .ics (Phase 6)
 psycopg[binary]>=3.2
 python-dotenv>=1.0
+fastapi>=0.115           # API web mobile (Phase 9)
+uvicorn[standard]>=0.30  # serveur ASGI local pour l'API

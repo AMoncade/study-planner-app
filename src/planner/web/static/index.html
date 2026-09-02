@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e2126">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PlanEtudes">
+<link rel="manifest" href="/manifest.json">
+<title>Plan-Études</title>
+<style>
+  :root { --bg:#1e2126; --card:#23262c; --line:#33373f; --text:#d6d9de;
+          --dim:#8b919b; --blue:#2f6fed; --green:#2fa46a; --red:#c94f5e;
+          --orange:#c77b2f; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font:16px/1.45 system-ui,sans-serif;
+         padding-bottom:40px; }
+  header { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line);
+           display:flex; align-items:center; gap:8px; padding:10px 12px; z-index:2; }
+  header h1 { font-size:17px; flex:1; text-align:center; font-weight:600; }
+  button { font:inherit; color:var(--text); background:var(--card);
+           border:1px solid var(--line); border-radius:10px; cursor:pointer; }
+  .nav { min-width:52px; min-height:44px; font-size:20px; }
+  main { padding:12px; max-width:560px; margin:0 auto; }
+  .day { margin:14px 0 6px; color:var(--dim); font-size:14px; text-transform:uppercase;
+         letter-spacing:.04em; }
+  .block { width:100%; text-align:left; display:flex; align-items:center; gap:12px;
+           padding:14px; margin:6px 0; min-height:64px; }
+  .block .time { color:var(--dim); font-size:14px; min-width:86px; }
+  .block .what { flex:1; }
+  .block .course { font-weight:600; }
+  .block .state { font-size:22px; min-width:28px; text-align:center; }
+  .done   { border-color:var(--green); opacity:.75; }
+  .skipped{ border-color:var(--red); opacity:.6; }
+  .partial{ border-color:var(--orange); }
+  .locked .time::after { content:" 🔒"; }
+  .empty { color:var(--dim); padding:8px 2px; font-size:14px; }
+  .bar { display:flex; gap:8px; margin-top:16px; }
+  .bar button { flex:1; min-height:48px; }
+  dialog { background:var(--card); color:var(--text); border:1px solid var(--line);
+           border-radius:14px; padding:16px; width:min(92vw,420px); }
+  dialog::backdrop { background:rgba(0,0,0,.55); }
+  dialog h2 { font-size:16px; margin-bottom:12px; }
+  .choices { display:grid; gap:10px; }
+  .choices button { min-height:52px; font-size:17px; }
+  .warn { background:#3a2f16; border:1px solid var(--orange); color:#f0d9b0;
+          padding:10px 12px; border-radius:10px; margin:10px 0; font-size:14px; }
+  input { font:inherit; color:var(--text); background:var(--bg);
+          border:1px solid var(--line); border-radius:10px; padding:12px;
+          width:100%; margin:8px 0; }
+  #pin-view { padding:24vh 24px 0; max-width:360px; margin:0 auto; text-align:center; }
+  #status-msg { position:fixed; left:0; right:0; bottom:0; padding:10px;
+                text-align:center; font-size:14px; color:var(--dim); }
+  .diffline { margin:8px 0; }
+</style>
+</head>
+<body>
+
+<div id="pin-view" hidden>
+  <h1 style="margin-bottom:16px">Plan-Études</h1>
+  <p style="color:var(--dim)">Entrer le code PIN</p>
+  <input id="pin-input" type="password" inputmode="numeric" autocomplete="off">
+  <button style="width:100%;min-height:48px" onclick="savePin()">Entrer</button>
+  <p id="pin-error" style="color:var(--red);margin-top:10px"></p>
+</div>
+
+<div id="app-view" hidden>
+  <header>
+    <button class="nav" onclick="move(-1)">◀</button>
+    <h1 id="week-title">…</h1>
+    <button class="nav" onclick="move(1)">▶</button>
+  </header>
+  <main>
+    <div id="days"></div>
+    <div class="bar">
+      <button onclick="move(0, true)">Aujourd'hui</button>
+      <button onclick="recalc()">Recalculer (aperçu)</button>
+    </div>
+  </main>
+</div>
+
+<dialog id="block-dialog">
+  <h2 id="block-title"></h2>
+  <div class="choices">
+    <button onclick="setStatus('done')">✓ Fait</button>
+    <button onclick="askPartial()">◐ Partiellement fait…</button>
+    <button onclick="setStatus('skipped')">✗ Manqué</button>
+    <button onclick="setStatus('planned')">↺ Remettre à planifié</button>
+    <button onclick="closeDialogs()">Annuler</button>
+  </div>
+</dialog>
+
+<dialog id="partial-dialog">
+  <h2>Minutes réellement étudiées</h2>
+  <input id="partial-minutes" type="number" inputmode="numeric" min="0" max="600">
+  <div class="choices">
+    <button onclick="confirmPartial()">Valider</button>
+    <button onclick="closeDialogs()">Annuler</button>
+  </div>
+</dialog>
+
+<dialog id="recalc-dialog">
+  <h2>Aperçu du recalcul</h2>
+  <div class="warn">Aperçu, non enregistré — rien n'est modifié. Le vrai recalcul se
+  fait sur l'ordinateur (source de vérité).</div>
+  <div id="recalc-body" class="diffline">…</div>
+  <div class="choices"><button onclick="closeDialogs()">Fermer</button></div>
+</dialog>
+
+<div id="status-msg"></div>
+
+<script>
+let offset = 0;
+let currentBlock = null;
+
+const $ = id => document.getElementById(id);
+const pin = () => sessionStorage.getItem("pin") || "";
+
+function savePin() {
+  sessionStorage.setItem("pin", $("pin-input").value.trim());
+  $("pin-error").textContent = "";
+  boot();
+}
+
+async function api(path, options = {}) {
+  options.headers = Object.assign({"X-App-Pin": pin()}, options.headers || {});
+  const response = await fetch(path, options);
+  if (response.status === 401) { showPin("PIN refusé."); throw new Error("401"); }
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  return response.json();
+}
+
+function showPin(message) {
+  $("app-view").hidden = true;
+  $("pin-view").hidden = false;
+  $("pin-error").textContent = message || "";
+}
+
+function message(text) {
+  $("status-msg").textContent = text;
+  if (text) setTimeout(() => { $("status-msg").textContent = ""; }, 3000);
+}
+
+async function loadWeek() {
+  const data = await api(`/api/week?offset=${offset}`);
+  const monday = new Date(data.monday + "T00:00:00");
+  const end = new Date(monday); end.setDate(end.getDate() + 6);
+  const fmt = d => d.toLocaleDateString("fr-CA", {day: "2-digit", month: "2-digit"});
+  $("week-title").textContent = `${fmt(monday)} → ${fmt(end)}`;
+  const marks = {done: "✓", partial: "◐", skipped: "✗", planned: ""};
+  $("days").innerHTML = data.days.map(day => {
+    const rows = day.blocks.length === 0
+      ? `<div class="empty">— libre</div>`
+      : day.blocks.map(b => `
+        <button class="block ${b.status}${b.locked ? " locked" : ""}"
+                onclick='openBlock(${JSON.stringify(JSON.stringify(b))})'>
+          <span class="time">${b.start.slice(11, 16)}–${b.end.slice(11, 16)}</span>
+          <span class="what"><span class="course">${b.course}</span><br>
+            <small>${b.evaluation} · ${b.planned_minutes} min</small></span>
+          <span class="state">${marks[b.status] ?? ""}</span>
+        </button>`).join("");
+    return `<div class="day">${day.label}</div>${rows}`;
+  }).join("");
+  $("pin-view").hidden = true;
+  $("app-view").hidden = false;
+}
+
+function openBlock(json) {
+  currentBlock = JSON.parse(json);
+  $("block-title").textContent =
+    `${currentBlock.course} — ${currentBlock.evaluation} (${currentBlock.start.slice(11, 16)})`;
+  $("block-dialog").showModal();
+}
+
+function closeDialogs() {
+  for (const d of document.querySelectorAll("dialog")) d.close();
+}
+
+async function setStatus(status, minutes = null) {
+  closeDialogs();
+  try {
+    await api(`/api/blocks/${currentBlock.id}/status`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({status: status, actual_minutes: minutes}),
+    });
+    message("Enregistré ✓ (rapatrier avec sync-pull sur l'ordinateur)");
+    await loadWeek();
+  } catch (e) { message("Erreur : " + e.message); }
+}
+
+function askPartial() {
+  $("block-dialog").close();
+  $("partial-minutes").value = Math.round(currentBlock.planned_minutes / 2);
+  $("partial-dialog").showModal();
+}
+
+function confirmPartial() {
+  const minutes = parseInt($("partial-minutes").value, 10) || 0;
+  setStatus("partial", minutes);
+}
+
+async function move(delta, reset = false) {
+  offset = reset ? 0 : offset + delta;
+  try { await loadWeek(); } catch (e) {}
+}
+
+async function recalc() {
+  message("Calcul de l'aperçu…");
+  try {
+    const data = await api(`/api/recalculate?offset=${offset}`, {method: "POST"});
+    const diff = data.diff;
+    $("recalc-body").innerHTML =
+      `<div>${diff.kept} inchangé(s) · ${diff.moved} déplacé(s) · ` +
+      `${diff.added} ajouté(s) · ${diff.removed} supprimé(s)</div>` +
+      (data.rho < 1 ? `<div class="warn">Surcharge : ρ = ${data.rho.toFixed(2)}</div>` : "") +
+      `<div style="color:var(--dim);margin-top:8px">` +
+      `${data.preview_blocks.length} bloc(s) cette semaine dans l'aperçu.</div>`;
+    message("");
+    $("recalc-dialog").showModal();
+  } catch (e) { message("Erreur : " + e.message); }
+}
+
+async function boot() {
+  if (!pin()) { showPin(); return; }
+  try { await loadWeek(); } catch (e) {}
+}
+boot();
+</script>
+</body>
+</html>
