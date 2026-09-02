@@ -23,8 +23,9 @@ from PySide6.QtWidgets import (
 from planner.core.errors import ImportBlockedError
 from planner.core.importer import import_course_data
 from planner.core.validation import validate_document
+from planner.resources import resource_path
 
-PROMPT_PATH = Path(__file__).resolve().parents[4] / "docs" / "PROMPT_EXTRACTION.md"
+PROMPT_PATH = resource_path("docs/PROMPT_EXTRACTION.md")
 
 
 class ImportView(QWidget):

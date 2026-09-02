@@ -10,13 +10,14 @@ from __future__ import annotations
 import json
 from datetime import date
 from functools import cache
-from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from planner.resources import resource_path
+
 SUPPORTED_SCHEMA_VERSIONS = ("1.0",)
 
-SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema" / "cours.schema.json"
+SCHEMA_PATH = resource_path("docs/schema/cours.schema.json")
 
 WEIGHT_SUM_TOLERANCE = 0.5
 

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from planner.resources import resource_path
 from planner.ui.views.constraints_view import ConstraintsView
 from planner.ui.views.courses_view import CoursesView
 from planner.ui.views.dashboard_view import DashboardView
@@ -23,7 +24,7 @@ from planner.ui.views.import_view import ImportView
 from planner.ui.views.schedule_view import ScheduleView
 from planner.ui.views.settings_view import SettingsView
 
-STYLE_PATH = Path(__file__).with_name("style.qss")
+STYLE_PATH = resource_path("planner/ui/style.qss")
 
 
 class _Placeholder(QWidget):

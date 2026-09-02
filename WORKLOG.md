@@ -4,6 +4,27 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 7 : packaging Windows
+
+- **Dépendance ajoutée** : `pyinstaller==6.*` dans `requirements-dev.txt` — packaging
+  de l'exe, prescrit par ARCHITECTURE §1.1 (Phase 7). Jamais embarqué à l'exécution.
+- `resources.py` : `resource_path()` résout les ressources (schéma JSON, prompt, QSS)
+  en dev comme dans l'exe gelé (`sys._MEIPASS`).
+- Base de données de l'exe : `%LOCALAPPDATA%\PlanEtudes\plan_etudes.db`
+  (`sys.frozen`) ; `data/` inchangé en développement.
+- `build_exe.ps1` : `pyinstaller --onefile --windowed` + `--add-data` (schéma, prompt,
+  style). Produit `dist/PlanEtudes.exe` (~50 Mo, non versionné).
+- Crochet `PLANNER_SMOKE_TEST=1` dans `app.py` : l'exe s'ouvre, attend 3 s, quitte —
+  vérifié : exit 0, base créée au bon endroit.
+- README réécrit : flux complet (extraction → import → réglage → plan → suivi),
+  commandes CLI, construction de l'exe, procédure de mise à jour.
+
+Reste volontairement hors de cette session (§4.9) : la **calibration manuelle** des
+coefficients contre le trimestre réel — tâche de jugement à faire à l'usage, puis
+re-figer `test_integration.py`.
+
+---
+
 ## 2026-09-01 — Phase 6 : export et intégrations locales
 
 - 3 nouveaux tests (`test_export.py`) : 104 au total, verts.

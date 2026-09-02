@@ -119,7 +119,19 @@ MIGRATIONS: list[str] = [
 
 SCHEMA_VERSION = len(MIGRATIONS)
 
-DEFAULT_DB_PATH = Path("data") / "plan_etudes.db"
+
+def _default_db_path() -> Path:
+    """data/ du dépôt en développement ; %LOCALAPPDATA%\\PlanEtudes dans l'exe."""
+    import os
+    import sys
+
+    if getattr(sys, "frozen", False):
+        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "PlanEtudes"
+        return base / "plan_etudes.db"
+    return Path("data") / "plan_etudes.db"
+
+
+DEFAULT_DB_PATH = _default_db_path()
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
