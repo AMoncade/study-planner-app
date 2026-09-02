@@ -4,6 +4,27 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 8b : durcissement de l'adaptateur Postgres
+
+- **Sécurité du test de fumée** (il TRONQUE les tables) : il ne lit plus jamais
+  DATABASE_URL — connexion uniquement via `DATABASE_URL_TEST` passée explicitement à
+  `connect_pg(url=...)`, skip si absente, et échec explicite si elle est égale à
+  DATABASE_URL (opt-in `PG_TEST_ALLOW_TRUNCATE=1` pour l'assumer). Avertissement
+  « test destructif » en tête de fichier. Sans base de test configurée, les 6 tests
+  sont sautés : un simple `pytest` ne peut plus effacer la base réelle.
+- `connect_pg(url=None, migrate=True)` : `migrate=False` saute `migrate_pg` (chemin
+  chaud d'une future API — économise deux allers-retours par connexion ; migrer au
+  démarrage du service).
+- Migrations sûres en concurrence : `pg_advisory_xact_lock` (transactionnel, compatible
+  pooler en mode transaction, contrairement au verrou de session) + relecture de la
+  version après verrou + `IF NOT EXISTS` sur tous les CREATE. Deux connexions
+  simultanées sur une base neuve ne se marchent plus dessus.
+- Vérifié en réel (non destructif) : migration idempotente sous verrou (version 1/1)
+  et connexion `migrate=False` fonctionnelle contre le pooler Supabase.
+- Le 3e point du message de demande est arrivé tronqué — en attente de l'utilisateur.
+
+---
+
 ## 2026-09-02 — Phase 8a : adaptateur Postgres (Supabase) à côté de SQLite
 
 - **Dépendances ajoutées** : `psycopg[binary]>=3.2` (client Postgres pour le backend web

@@ -1,7 +1,10 @@
-"""Test de fumée Postgres (Supabase, pooler transaction) — Phase 8a.
+"""Test de fumée Postgres (Supabase, pooler transaction) — Phase 8a/8b.
 
-Sauté automatiquement si DATABASE_URL est absent (environnement ou .env du dépôt).
-Ré-exécutable : les tables sont tronquées au début.
+⚠ TEST DESTRUCTIF : il TRONQUE toutes les tables applicatives de la base visée
+(TRUNCATE ... RESTART IDENTITY CASCADE) pour être ré-exécutable. C'est pourquoi il ne
+lit JAMAIS DATABASE_URL : il se connecte uniquement via DATABASE_URL_TEST, et il est
+sauté si elle est absente. Si DATABASE_URL_TEST pointe (par erreur) sur la même base
+que DATABASE_URL, le test échoue — sauf opt-in explicite PG_TEST_ALLOW_TRUNCATE=1.
 """
 
 import os
@@ -13,9 +16,12 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
+TEST_URL = os.environ.get("DATABASE_URL_TEST")
+
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="DATABASE_URL absent : test Postgres sauté",
+    not TEST_URL,
+    reason="DATABASE_URL_TEST absent : test Postgres sauté "
+           "(ce test tronque la base visée — ne jamais y mettre la base réelle)",
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -28,7 +34,15 @@ TABLES = ("study_blocks", "generations", "constraints", "evaluations",
 def pg_conn():
     from planner.storage.pg import connect_pg
 
-    conn = connect_pg()
+    if (os.environ.get("DATABASE_URL") == TEST_URL
+            and os.environ.get("PG_TEST_ALLOW_TRUNCATE") != "1"):
+        pytest.fail(
+            "DATABASE_URL_TEST est identique à DATABASE_URL : ce test TRONQUE toutes "
+            "les tables de la base visée. Pointer DATABASE_URL_TEST vers une base "
+            "jetable (autre projet ou autre schéma Supabase), ou — en toute "
+            "connaissance de cause — poser PG_TEST_ALLOW_TRUNCATE=1 pour l'assumer."
+        )
+    conn = connect_pg(url=TEST_URL)
     with conn:
         conn.execute(
             f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"
@@ -102,6 +116,19 @@ def test_with_conn_does_not_close_connection(pg_conn):
         pg_conn.execute("SELECT 1").fetchone()
         raise RuntimeError("rollback attendu")
     assert pg_conn.execute("SELECT 1").fetchone()[0] == 1
+
+
+def test_connect_without_migrate_skips_migrations(pg_conn):
+    """connect_pg(migrate=False) n'exécute pas migrate_pg mais reste utilisable."""
+    from planner.storage.pg import SCHEMA_VERSION_PG, connect_pg
+
+    conn = connect_pg(url=TEST_URL, migrate=False)
+    try:
+        version = conn.execute("SELECT version FROM schema_version").fetchone()[0]
+        assert version == SCHEMA_VERSION_PG  # schéma déjà en place, rien re-migré
+        assert conn.execute("SELECT count(*) FROM courses").fetchone()[0] >= 0
+    finally:
+        conn.close()
 
 
 def test_reimport_reconciliation_on_postgres(pg_conn):
