@@ -4,6 +4,33 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 1 : noyau données (sans UI)
+
+- Tests écrits d'abord (`test_importer.py`, `test_storage.py`) : 22 tests, tous verts.
+- `core/models.py` : dataclasses pures (Course, Session, Evaluation, Constraint, StudyBlock)
+  + constantes d'énumération. `weekday` en entier 0–6 aligné sur `date.weekday()`.
+- `core/validation.py` : règles §2.4 — bloquantes (version de schéma, jsonschema, ids
+  uniques, dates réellement parsables, start ≤ due) et avertissements (somme des poids ±0,5,
+  due_date null, confiance < high, échéance hors trimestre) ; règle 9 (conflits d'examens
+  inter-cours) via requête SQL, affichée à l'import CLI.
+- `core/importer.py` : mapping JSON → modèles, défaut d'heure d'échéance (08:00 examen,
+  23:59 remise), réconciliation §2.5 en transaction unique — upsert par
+  `(code, term)` + `external_id`, champs manuels préservés, blocs `planned` invalidés quand
+  `due_at`/`weight`/`scope_units`/`cumulative`/`type` change, évaluations disparues archivées.
+- `storage/db.py` : migrations en avant par `PRAGMA user_version`, sauvegarde horodatée
+  avant import (`backup_database`). `docs/schema/db.sql` **généré** depuis `MIGRATIONS`
+  (synchronisation garantie par construction).
+- `storage/repositories.py` : CRUD complet des 7 tables.
+- CLI `python -m planner import <f.json>` / `list` opérationnelle sur les 4 fixtures
+  réelles ; sortie UTF-8 forcée (console Windows cp1252).
+- Projet installé en editable dans le venv (`pip install -e .`) pour que `python -m planner`
+  fonctionne hors pytest — pas une dépendance, c'est le paquet lui-même.
+
+**Prochaine étape — Phase 2 :** moteur de planification (workload, curve, availability,
+placer, metrics) + `python -m planner plan`.
+
+---
+
 ## 2026-09-01 — Phase 0.5 : données réelles + dépôt GitHub
 
 - Dépôt GitHub `AMoncade/Study-Creator` renommé en **`AMoncade/study-planner-app`**, ajouté

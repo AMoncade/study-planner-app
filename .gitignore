@@ -13,3 +13,4 @@ data/*.db-journal
 plans_de_cours/          # PDF personnels, jamais versionnes
 .vscode/
 .idea/
+*.egg-info/
