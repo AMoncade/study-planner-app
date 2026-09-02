@@ -4,6 +4,30 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 4 : vue Planning + recalcul incrémental
+
+- 13 nouveaux tests (`test_rebalance.py`, `test_ui_schedule.py`) : 86 au total, verts.
+- `scheduler/placer.py` étendu : `fixed_blocks` (occupent la grille, comptent comme
+  placés) et `hours_done` (réduisent la charge restante) — toujours pur et déterministe.
+- `scheduler/rebalance.py` (étape F) : H_fait = Σ minutes réelles × η (done/partial),
+  `skipped` ne réduit rien (travail repoussé, pas fait), blocs verrouillés figés,
+  blocs planifiés futurs libérés puis replacés avec P_stabilité ; différentiel
+  (inchangés/déplacés/ajoutés/supprimés) + `apply_rebalance`.
+- `ui/widgets/week_calendar.py` (§5.4) : calendrier hebdo dessiné (`paintEvent`),
+  contraintes hachurées, séances grises, blocs colorés par cours avec statut (✓ ◐ ✗ 🔒),
+  sélection, menu contextuel, glisser-déposer avec accrochage 30 min, double-clic détail.
+- `ui/views/schedule_view.py` : navigation semaine, bandeau (h planifiées / faites,
+  alertes), Recalculer avec `RecalcDiffDialog` (aperçu du différentiel avant application),
+  statuts Fait / Partiellement fait (`BlockCompletionDialog` : minutes + efficacité) /
+  Manqué / Verrouiller / Supprimer ; un déplacement manuel verrouille le bloc (`moved`).
+- Vérifié en GUI réelle : 111 blocs générés sur les 4 cours, semaine de pointe d'octobre
+  affichée sans erreur ; un bloc marqué fait survit au recalcul, un bloc déplacé reste
+  en place.
+
+**Prochaine étape — Phase 5 :** tableau de bord, paramètres, grille peignable niveau 2.
+
+---
+
 ## 2026-09-01 — Phase 3 : UI — coquille, Importer, Cours, Contraintes (tableau)
 
 - 7 tests pytest-qt (`test_ui_views.py`) : navigation, import via la vue, rejet d'un

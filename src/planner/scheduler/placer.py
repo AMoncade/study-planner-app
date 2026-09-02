@@ -75,6 +75,8 @@ class _Placer:
         s: EngineSettings,
         today: date,
         previous_blocks: list[StudyBlock] | None,
+        fixed_blocks: list[StudyBlock] | None = None,
+        hours_done: dict[int, float] | None = None,
     ):
         self.s = s
         self.today = today
@@ -82,7 +84,10 @@ class _Placer:
         self.evaluations = evaluations
         self.constraints = constraints
         self.previous = previous_blocks or []
+        self.fixed = fixed_blocks or []            # blocs verrouillés/faits : figés
+        self.hours_done = hours_done or {}         # clé : id BD d'évaluation -> heures
         self.exclusions: dict[str, str] = {}
+        self.placed_init: dict[int, float] = {}
         self.blocks: list[StudyBlock] = []
         self.placed_hours: dict[int, float] = {}   # clé : index d'évaluation
         self.day_states: dict[date, _DayState] = {}
@@ -118,10 +123,21 @@ class _Placer:
             d: _DayState(slots_free=list(slots)) for d, slots in grid.items()
         }
 
-        loads = {
-            ev.external_id: total_hours(ev, self.courses[ev.course_id], self.s)
-            for ev, _ in candidates
-        }
+        # heures restantes après déduction du travail déjà fait (étape F)
+        loads: dict[str, float] = {}
+        remaining_candidates = []
+        for ev, window in candidates:
+            full = total_hours(ev, self.courses[ev.course_id], self.s)
+            load = max(0.0, full - self.hours_done.get(ev.id, 0.0))
+            if load < 0.5:
+                self.exclusions[ev.external_id] = "charge déjà couverte par le travail fait"
+                continue
+            loads[ev.external_id] = load
+            remaining_candidates.append((ev, window))
+        candidates = remaining_candidates
+        if not candidates:
+            return [], 1.0
+
         demand = sum(loads.values())
         capacity = total_capacity(grid, self.s)
         rho = 1.0 if demand <= capacity or demand == 0 else capacity / demand
@@ -129,6 +145,25 @@ class _Placer:
         ordered = sorted(
             candidates, key=lambda item: (item[0].due_at, -item[0].weight, item[0].external_id)
         )
+
+        # blocs figés (verrouillés, faits) : ils occupent la grille et comptent comme placés
+        key_by_db_id = {ev.id: ev_key for ev_key, (ev, _) in enumerate(ordered)}
+        self.placed_init: dict[int, float] = {}
+        for block in self.fixed:
+            day = block.start_at.date()
+            if day not in self.day_states:
+                continue
+            state = self.day_states[day]
+            ev_key = key_by_db_id.get(block.evaluation_id, -1)
+            start = block.start_at.hour * 2 + (1 if block.start_at.minute >= 30 else 0)
+            hours = block.planned_minutes / 60
+            for i in range(start, min(start + block.planned_minutes // 30, SLOTS_PER_DAY)):
+                state.owner[i] = ev_key
+            state.hours_total += hours
+            if ev_key >= 0:
+                state.hours_by_eval[ev_key] = state.hours_by_eval.get(ev_key, 0.0) + hours
+                self.placed_init[ev_key] = self.placed_init.get(ev_key, 0.0) + hours
+
         return [
             (ev, w, loads[ev.external_id] * rho, loads[ev.external_id]) for ev, w in ordered
         ], rho
@@ -251,10 +286,11 @@ class _Placer:
             capacities = {
                 d: self.remaining_capacity_for(d, ev_key) for d in window_days
             }
-            day_plan = day_targets(h_total, window_days, due_day, capacities, self.s)
+            h_needed = max(0.0, h_total - self.placed_init.get(ev_key, 0.0))
+            day_plan = day_targets(h_needed, window_days, due_day, capacities, self.s)
             target_curves[ev.external_id] = day_plan
 
-            placed_total = 0.0
+            placed_total = self.placed_init.get(ev_key, 0.0)
             # jours traités du plus proche de l'échéance au plus lointain
             for day in sorted(day_plan, key=lambda d: (due_day - d).days):
                 placed_total += self.place_hours(ev_key, ev, day, day_plan[day])
@@ -302,6 +338,16 @@ def plan(
     settings: EngineSettings,
     today: date,
     previous_blocks: list[StudyBlock] | None = None,
+    fixed_blocks: list[StudyBlock] | None = None,
+    hours_done: dict[int, float] | None = None,
 ) -> PlanResult:
-    """Génère un plan d'étude complet. Fonction pure et déterministe."""
-    return _Placer(courses, evaluations, constraints, settings, today, previous_blocks).run()
+    """Génère un plan d'étude complet. Fonction pure et déterministe.
+
+    previous_blocks : anciens blocs planifiés (terme de stabilité P_stabilité).
+    fixed_blocks    : blocs intouchables (verrouillés, faits) qui occupent la grille.
+    hours_done      : heures déjà réalisées par id d'évaluation (réduisent la charge).
+    """
+    return _Placer(
+        courses, evaluations, constraints, settings, today,
+        previous_blocks, fixed_blocks, hours_done,
+    ).run()

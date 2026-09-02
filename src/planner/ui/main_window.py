@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from planner.ui.views.constraints_view import ConstraintsView
 from planner.ui.views.courses_view import CoursesView
 from planner.ui.views.import_view import ImportView
+from planner.ui.views.schedule_view import ScheduleView
 
 STYLE_PATH = Path(__file__).with_name("style.qss")
 
@@ -48,10 +49,7 @@ class MainWindow(QMainWindow):
         self.import_view = ImportView(conn)
         self.courses_view = CoursesView(conn)
         self.constraints_view = ConstraintsView(conn)
-        self.planning_placeholder = _Placeholder(
-            "Vue Planning — Phase 4. Générer un plan en attendant :\n"
-            "  .venv\\Scripts\\python.exe -m planner plan --semaines 2"
-        )
+        self.schedule_view = ScheduleView(conn)
 
         self.stack = QStackedWidget()
         self.nav = QListWidget()
@@ -61,7 +59,7 @@ class MainWindow(QMainWindow):
             ("Importer", self.import_view),
             ("Cours et évaluations", self.courses_view),
             ("Contraintes", self.constraints_view),
-            ("Planning", self.planning_placeholder),
+            ("Planning", self.schedule_view),
         ):
             QListWidgetItem(name, self.nav)
             self.stack.addWidget(widget)
@@ -80,10 +78,12 @@ class MainWindow(QMainWindow):
 
         self.import_view.imported.connect(self._on_data_changed)
         self.constraints_view.changed.connect(self._update_status)
+        self.schedule_view.changed.connect(self._update_status)
 
     def _on_data_changed(self, _course_code: str = "") -> None:
         self.courses_view.refresh()
         self.constraints_view.refresh()
+        self.schedule_view.refresh()
         self._update_status()
         self.data_changed.emit()
 

@@ -323,6 +323,32 @@ def update_study_block_status(
     conn.commit()
 
 
+def delete_study_block(conn: sqlite3.Connection, block_id: int) -> None:
+    conn.execute("DELETE FROM study_blocks WHERE id = ?", (block_id,))
+
+
+def move_study_block(
+    conn: sqlite3.Connection, block_id: int, start_at: datetime, end_at: datetime,
+    lock: bool = True,
+) -> None:
+    """Déplacement manuel : le bloc devient verrouillé (il survivra aux recalculs)."""
+    planned = int((end_at - start_at).total_seconds() // 60)
+    conn.execute(
+        """UPDATE study_blocks SET start_at = ?, end_at = ?, planned_minutes = ?,
+                                   locked = ?, status = 'moved'
+           WHERE id = ?""",
+        (_iso(start_at), _iso(end_at), planned, int(lock), block_id),
+    )
+    conn.commit()
+
+
+def set_study_block_lock(conn: sqlite3.Connection, block_id: int, locked: bool) -> None:
+    conn.execute(
+        "UPDATE study_blocks SET locked = ? WHERE id = ?", (int(locked), block_id)
+    )
+    conn.commit()
+
+
 def delete_planned_blocks(conn: sqlite3.Connection, evaluation_id: int) -> int:
     """Supprime les blocs futurs non verrouillés encore à l'état planned. Retourne le nombre."""
     cursor = conn.execute(
