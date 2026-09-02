@@ -4,6 +4,39 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 2 : moteur de planification (sans UI)
+
+- Tests écrits d'abord (`test_workload/curve/availability/placer/integration.py`) :
+  66 tests au total, tous verts.
+- `config.py` : `EngineSettings` (dataclass) portant tous les coefficients §4.9 — valeurs de
+  départ, à calibrer contre le trimestre réel.
+- `scheduler/workload.py` (étape A) : H_total = clamp(B·f_w·f_d·f_u·f_g·m_c), arrondi 0,5 h.
+- `scheduler/curve.py` (étapes B+C) : fenêtre par type (travail/projet depuis start_date),
+  courbe exp + plancher λ, redistribution des jours bloqués, plafond 3 h/éval/jour,
+  reversement de l'excédent vers les jours proches.
+- `scheduler/availability.py` (étape D) : grille 48×30 min/jour, éveil 08–22 h, contraintes
+  hebdo/ponctuelles, séances de cours (bornes + except_dates), tampon transport 30 min,
+  capacité min(libre, plafond jour), capacité totale × υ.
+- `scheduler/placer.py` (étape E) : EDF (échéance, puis poids), coût C1–C5 (horaire,
+  fragmentation, diversité, enchaînement, stabilité), report du reliquat vers les jours
+  éloignés, pause dure ≥ 1 créneau entre blocs. **Décisions consignées** :
+  1. la fenêtre s'arrête la veille de l'échéance (jour J réservé à l'épreuve — plus strict
+     que la marge ε de §4) ;
+  2. le déficit se mesure contre la charge NON réduite par ρ (l'alerte « préparation
+     insuffisante » reste visible en surcharge) ;
+  3. poids 0 (bonus) exclus du placement.
+- `scheduler/metrics.py` (étape G) : couverture, écart-type journalier, KL, pointe.
+- CLI `python -m planner plan --semaines N [--date] [--save]` : agenda ASCII, métriques,
+  alertes (ρ < 1, déficits, exclusions).
+- Sur les 4 cours réels : 174 h visées, couverture 89 %, ρ = 1, et le moteur signale
+  honnêtement l'entassement des 4 finaux de décembre (déficits MAT1400/MAT1720-FINAL).
+- Régression figée sur fixtures réelles (`test_integration.py`) — à re-figer après la
+  calibration manuelle §4.9 (tâche de jugement, pas de code).
+
+**Prochaine étape — Phase 3 :** UI (coquille, Importer, Cours, Contraintes tableau).
+
+---
+
 ## 2026-09-01 — Phase 1 : noyau données (sans UI)
 
 - Tests écrits d'abord (`test_importer.py`, `test_storage.py`) : 22 tests, tous verts.

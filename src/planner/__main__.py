@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from planner.core.errors import ImportBlockedError
@@ -71,6 +71,74 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plan(args: argparse.Namespace) -> int:
+    from planner.config import EngineSettings
+    from planner.core.models import WEEKDAYS
+    from planner.scheduler.placer import plan as run_plan
+
+    if not Path(args.db).exists():
+        print("Aucune base de données. Importer d'abord un fichier JSON.", file=sys.stderr)
+        return 1
+    conn = connect(args.db)
+    courses = repos.list_courses(conn)
+    evaluations = [e for c in courses for e in repos.list_evaluations(conn, course_id=c.id)]
+    constraints = repos.list_constraints(conn)
+    today = date.fromisoformat(args.date) if args.date else date.today()
+
+    result = run_plan(courses, evaluations, constraints, EngineSettings(), today)
+
+    labels = {e.id: e.external_id for e in evaluations}
+
+    # ---- agenda ASCII sur N semaines
+    horizon = today + timedelta(days=7 * args.semaines)
+    shown = [b for b in result.blocks if today <= b.start_at.date() < horizon]
+    print(f"Plan d'étude du {today} au {horizon - timedelta(days=1)} "
+          f"({len(shown)} bloc(s) affichés / {len(result.blocks)} au total)\n")
+    current_week = None
+    day = today
+    while day < horizon:
+        week = day.isocalendar()[:2]
+        if week != current_week:
+            current_week = week
+            print(f"=== Semaine {week[1]} ({week[0]}) " + "=" * 40)
+        day_blocks = [b for b in shown if b.start_at.date() == day]
+        total = sum(b.planned_minutes for b in day_blocks) / 60
+        header = f"{WEEKDAYS[day.weekday()]:<9} {day}"
+        if day_blocks:
+            print(f"{header}  — {total:g} h")
+            for b in day_blocks:
+                print(f"    {b.start_at:%H:%M}–{b.end_at:%H:%M}  {labels[b.evaluation_id]}")
+        else:
+            print(f"{header}  — libre")
+        day += timedelta(days=1)
+
+    # ---- métriques et alertes
+    m = result.metrics
+    print(f"\nCouverture : {m.coverage:.0%}  ·  {m.total_planned_hours:g} h placées "
+          f"/ {m.total_target_hours:g} h visées  ·  pointe {m.peak_hours:g} h/jour  "
+          f"·  écart-type {m.daily_stddev:.2f} h")
+    if result.rho < 1.0:
+        print(f"  ⚠ SEMESTRE EN SURCHARGE : facteur ρ = {result.rho:.2f} appliqué "
+              "(demande réduite uniformément).")
+    for external_id, deficit in sorted(result.deficits.items()):
+        if deficit > 0:
+            print(f"  ⚠ {external_id} : préparation insuffisante, déficit {deficit:g} h.")
+    for external_id, reason in sorted(result.exclusions.items()):
+        print(f"  ⚠ {external_id} : {reason}")
+
+    if args.save:
+        saved = 0
+        with conn:
+            for e in evaluations:
+                repos.delete_planned_blocks(conn, e.id)
+            for b in result.blocks:
+                repos.insert_study_block(conn, b.evaluation_id, b.start_at, b.end_at)
+                saved += 1
+        print(f"\n{saved} bloc(s) enregistrés dans la base.")
+    conn.close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="planner", description="Plan-Études (CLI)")
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="chemin de la base SQLite")
@@ -82,6 +150,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_list = sub.add_parser("list", help="lister les cours et évaluations")
     p_list.set_defaults(func=cmd_list)
+
+    p_plan = sub.add_parser("plan", help="générer le plan d'étude et l'afficher")
+    p_plan.add_argument("--semaines", type=int, default=2, help="semaines à afficher")
+    p_plan.add_argument("--date", help="date de départ YYYY-MM-DD (défaut : aujourd'hui)")
+    p_plan.add_argument("--save", action="store_true",
+                        help="enregistrer les blocs générés dans la base")
+    p_plan.set_defaults(func=cmd_plan)
 
     return parser
 
