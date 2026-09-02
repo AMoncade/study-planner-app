@@ -21,7 +21,24 @@ Une entrée par tâche terminée, la plus récente en haut.
   simultanées sur une base neuve ne se marchent plus dessus.
 - Vérifié en réel (non destructif) : migration idempotente sous verrou (version 1/1)
   et connexion `migrate=False` fonctionnelle contre le pooler Supabase.
-- Le 3e point du message de demande est arrivé tronqué — en attente de l'utilisateur.
+
+### Complément (message complet reçu) — points 2 fin, 3 et 4
+
+- `schema_version` : contrainte mono-ligne (`id INTEGER PRIMARY KEY CHECK (id = 1)`) —
+  une double insertion concurrente échoue proprement (CheckViolation vérifiée en réel).
+  La table préexistante sous l'ancienne forme est recréée **sous verrou en préservant
+  la version courante** (détection via information_schema).
+- `validation.py` / `cross_course_conflicts` (règle 9) : `date(x)` → `substr(x, 1, 10)`,
+  identique sur SQLite et Postgres puisque `due_at` est du texte ISO. Tests SQLite qui
+  l'exercent (CLI import, dashboard) toujours verts.
+- Smoke test : + `test_cross_course_conflicts_on_postgres`. Nota : les 4 fixtures
+  réelles n'ont AUCUN examen le même jour (finaux les 10/11/16/17 décembre) — le test
+  vérifie l'exécution sans erreur sur les vraies données puis fabrique un conflit par
+  UPDATE non commité (rollback ensuite) pour prouver la détection.
+- Vérifications : sans DATABASE_URL_TEST → 7 tests SAUTÉS, 104 SQLite verts ; garde-fou
+  d'égalité → échec explicite confirmé ; avec DATABASE_URL_TEST + opt-in
+  PG_TEST_ALLOW_TRUNCATE=1 (base inspectée d'abord : uniquement les données de fixtures
+  du smoke précédent) → **7/7 verts contre le pooler Supabase**.
 
 ---
 

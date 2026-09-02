@@ -131,6 +131,28 @@ def test_connect_without_migrate_skips_migrations(pg_conn):
         conn.close()
 
 
+def test_cross_course_conflicts_on_postgres(pg_conn):
+    """La règle 9 (substr portable, ex-date()) tourne sur Postgres et détecte un conflit.
+
+    Les 4 fixtures réelles n'ont aucun examen le même jour (finaux les 10, 11, 16 et
+    17 décembre) : on fabrique un conflit par un UPDATE non commité, puis rollback.
+    """
+    from planner.core.validation import cross_course_conflicts
+
+    assert cross_course_conflicts(pg_conn) == []  # s'exécute sans erreur, rien à signaler
+    pg_conn.execute(
+        "UPDATE evaluations SET due_at = ? WHERE external_id = ?",
+        ("2026-12-10T13:00:00", "MAT1600-FINAL"),  # même jour que MAT1000-FINAL
+    )
+    conflicts = cross_course_conflicts(pg_conn)
+    assert any(
+        "2026-12-10" in c and "MAT1600-FINAL" in c and "MAT1000-FINAL" in c
+        for c in conflicts
+    ), conflicts
+    pg_conn.rollback()
+    assert cross_course_conflicts(pg_conn) == []
+
+
 def test_reimport_reconciliation_on_postgres(pg_conn):
     from planner.core.importer import import_course_file
 

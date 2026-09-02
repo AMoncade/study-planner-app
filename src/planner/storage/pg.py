@@ -235,16 +235,39 @@ def migrate_pg(conn: PgConnection) -> None:
     """
     with conn:
         conn.execute("SELECT pg_advisory_xact_lock(?)", (_MIGRATION_LOCK_KEY,))
+        # Contrainte mono-ligne : une double insertion concurrente échoue proprement
+        # (violation de clé primaire) au lieu de créer une deuxième ligne.
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS schema_version ("
+            " id INTEGER PRIMARY KEY CHECK (id = 1),"
+            " version INTEGER NOT NULL)"
         )
-        row = conn.execute("SELECT version FROM schema_version").fetchone()
+        # La table peut préexister sous son ancienne forme (version seule, sans id) :
+        # la recréer sous verrou en préservant la version courante.
+        has_id = conn.execute(
+            "SELECT count(*) FROM information_schema.columns"
+            " WHERE table_schema = current_schema()"
+            " AND table_name = 'schema_version' AND column_name = 'id'",
+        ).fetchone()[0]
+        if not has_id:
+            row = conn.execute("SELECT version FROM schema_version").fetchone()
+            preserved = row[0] if row else 0
+            conn.execute("DROP TABLE schema_version")
+            conn.execute(
+                "CREATE TABLE schema_version ("
+                " id INTEGER PRIMARY KEY CHECK (id = 1),"
+                " version INTEGER NOT NULL)"
+            )
+            conn.execute(
+                "INSERT INTO schema_version (id, version) VALUES (1, ?)", (preserved,)
+            )
+        row = conn.execute("SELECT version FROM schema_version WHERE id = 1").fetchone()
         current = row[0] if row else 0
         if row is None:
-            conn.execute("INSERT INTO schema_version (version) VALUES (0)")
+            conn.execute("INSERT INTO schema_version (id, version) VALUES (1, 0)")
         for number, script in enumerate(MIGRATIONS_PG[current:], start=current + 1):
             conn.executescript(script)
-            conn.execute("UPDATE schema_version SET version = ?", (number,))
+            conn.execute("UPDATE schema_version SET version = ? WHERE id = 1", (number,))
 
 
 def connect_pg(url: str | None = None, migrate: bool = True) -> PgConnection:

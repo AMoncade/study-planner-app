@@ -132,9 +132,10 @@ def cross_course_conflicts(conn) -> list[str]:
     """Règle 9 : deux évaluations de cours différents à la même date (info tableau de bord)."""
     rows = conn.execute(
         """
-        SELECT date(a.due_at), ca.code, a.external_id, cb.code, b.external_id
+        SELECT substr(a.due_at, 1, 10), ca.code, a.external_id, cb.code, b.external_id
         FROM evaluations a
-        JOIN evaluations b ON date(a.due_at) = date(b.due_at) AND a.id < b.id
+        JOIN evaluations b ON substr(a.due_at, 1, 10) = substr(b.due_at, 1, 10)
+                          AND a.id < b.id
         JOIN courses ca ON ca.id = a.course_id
         JOIN courses cb ON cb.id = b.course_id
         WHERE a.course_id != b.course_id
