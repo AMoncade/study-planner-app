@@ -4,6 +4,29 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 8c : synchronisation SQLite <-> Postgres
+
+- `sync.py` : `push` (réplique intégrale SQLite → Postgres, transaction unique
+  tout-ou-rien, TRUNCATE ... RESTART IDENTITY CASCADE, recopie brute par
+  `pragma_table_info` — indépendante du mapping des modèles — avec **id d'origine
+  conservés**, puis **recalage des séquences IDENTITY** via
+  `setval(pg_get_serial_sequence(t,'id'), max(id)+1, false)` : sans lui, la première
+  écriture web violerait l'unicité, testé) ; `pull` (statuts seulement :
+  status/actual_minutes/efficiency/note des blocs appariés par id, ne crée ni ne
+  supprime rien, ne touche à aucune autre table, orphelins comptés et ignorés,
+  transaction unique côté SQLite).
+- CLI `sync-push` / `sync-pull` : `backup_database()` du fichier SQLite avant chacun
+  (pull modifie SQLite ; push par précaution), compteurs affichés. `sync-pull` ouvre
+  Postgres avec `migrate=False` (lecture seule du schéma déjà en place).
+- `tests/test_sync.py` (sautés sans DATABASE_URL_TEST, même garde-fou d'égalité que le
+  smoke) : comptes ET id identiques table par table après push ; insertion post-push
+  sans collision (id = max+1) ; aller-retour Fait côté web → pull → SQLite reflète
+  statut/minutes/efficacité et rien d'autre ne change ; double push idempotent et
+  Postgres redevient l'exact reflet de SQLite. **4/4 verts contre la base de test.**
+- Suite complète : 115 tests verts (104 SQLite + 7 smoke PG + 4 sync).
+
+---
+
 ## 2026-09-02 — Phase 8b : durcissement de l'adaptateur Postgres
 
 - **Sécurité du test de fumée** (il TRONQUE les tables) : il ne lit plus jamais

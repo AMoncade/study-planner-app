@@ -152,6 +152,43 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync_push(args: argparse.Namespace) -> int:
+    from planner.storage.pg import connect_pg
+    from planner.sync import push
+
+    if not Path(args.db).exists():
+        print("Aucune base de données. Importer d'abord un fichier JSON.", file=sys.stderr)
+        return 1
+    backup_database(args.db)  # copie de sûreté avant toute synchronisation
+    sqlite_conn = connect(args.db)
+    pg_conn = connect_pg()
+    counters = push(sqlite_conn, pg_conn)
+    pg_conn.close()
+    sqlite_conn.close()
+    total = sum(counters.values())
+    detail = " · ".join(f"{table} {count}" for table, count in counters.items())
+    print(f"Push SQLite → Postgres : {total} ligne(s) copiée(s) ({detail})")
+    return 0
+
+
+def cmd_sync_pull(args: argparse.Namespace) -> int:
+    from planner.storage.pg import connect_pg
+    from planner.sync import pull
+
+    if not Path(args.db).exists():
+        print("Aucune base de données. Importer d'abord un fichier JSON.", file=sys.stderr)
+        return 1
+    backup_database(args.db)  # pull modifie SQLite : copie de sûreté d'abord
+    sqlite_conn = connect(args.db)
+    pg_conn = connect_pg(migrate=False)
+    counters = pull(pg_conn, sqlite_conn)
+    pg_conn.close()
+    sqlite_conn.close()
+    print(f"Pull Postgres → SQLite : {counters['mis_a_jour']} bloc(s) mis à jour "
+          f"sur {counters['blocs_web']} · {counters['orphelins']} orphelin(s) ignoré(s)")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="planner", description="Plan-Études (CLI)")
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="chemin de la base SQLite")
@@ -167,6 +204,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_export = sub.add_parser("export", help="exporter blocs et échéances en .ics")
     p_export.add_argument("--out", default="plan_etudes.ics", help="fichier de sortie")
     p_export.set_defaults(func=cmd_export)
+
+    p_push = sub.add_parser(
+        "sync-push", help="répliquer la base SQLite vers Postgres (copie web)"
+    )
+    p_push.set_defaults(func=cmd_sync_push)
+
+    p_pull = sub.add_parser(
+        "sync-pull", help="rapatrier les statuts de blocs cochés côté web"
+    )
+    p_pull.set_defaults(func=cmd_sync_pull)
 
     p_plan = sub.add_parser("plan", help="générer le plan d'étude et l'afficher")
     p_plan.add_argument("--semaines", type=int, default=2, help="semaines à afficher")
