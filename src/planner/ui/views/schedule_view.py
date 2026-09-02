@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from planner.config import EngineSettings
+from planner.config import load_engine_settings
 from planner.scheduler.rebalance import RebalanceDiff, apply_rebalance, rebalance
 from planner.storage import repositories as repos
 from planner.ui.widgets.week_calendar import BlockView, BusyView, WeekCalendar
@@ -74,7 +74,7 @@ class ScheduleView(QWidget):
     def __init__(self, conn, parent=None):
         super().__init__(parent)
         self.conn = conn
-        self.settings = EngineSettings()
+        self.settings = load_engine_settings(conn)
         self.monday = date.today() - timedelta(days=date.today().weekday())
 
         previous_week = QPushButton("◀")
@@ -121,6 +121,9 @@ class ScheduleView(QWidget):
         return courses, evaluations, blocks
 
     def refresh(self) -> None:
+        self.settings = load_engine_settings(self.conn)
+        self.calendar.day_start = self.settings.wake_start
+        self.calendar.day_end = self.settings.wake_end
         courses, evaluations, blocks = self._load()
         course_index = {c.id: i for i, c in enumerate(courses)}
         eval_by_id = {e.id: e for e in evaluations}

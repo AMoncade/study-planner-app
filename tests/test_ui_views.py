@@ -32,7 +32,7 @@ def loaded_conn(conn):
 def test_main_window_opens_and_navigates(qtbot, loaded_conn):
     window = MainWindow(loaded_conn)
     qtbot.addWidget(window)
-    assert window.stack.count() == 4
+    assert window.stack.count() == 6
     for row in range(window.nav.count()):
         window.nav.setCurrentRow(row)
         assert window.stack.currentIndex() == row

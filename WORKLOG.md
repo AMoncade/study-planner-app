@@ -4,6 +4,31 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 5 : tableau de bord, paramètres, grille peignable
+
+- 15 nouveaux tests (`test_settings_io`, `test_constraint_grid`, `test_ui_phase5`) :
+  101 au total, verts.
+- `config.py` : `EngineSettings.to_dict/from_dict` + `load/save_engine_settings` —
+  les coefficients §4.9 sont persistés dans la table `settings` (JSON) et repris par
+  toutes les vues (arbre des cours, planning, contraintes) à chaque rafraîchissement.
+- `ui/views/dashboard_view.py` (§5.5) : alertes issues d'un recalcul À BLANC (ρ,
+  déficits, dates manquantes, examens en conflit via la règle 9), échéances à 14 jours
+  avec compte à rebours, progression par évaluation (`QProgressBar` heures faites /
+  H_total), charge restante par cours et historique hebdomadaire dessinés à la main
+  (`ui/widgets/hbar_chart.py`). Rafraîchi à l'affichage de la vue seulement (coût du
+  recalcul à blanc).
+- `ui/views/settings_view.py` (§5.6) : plage d'éveil, plafonds, tailles de bloc,
+  α/β/λ/υ/τ, coûts C1–C5, table B(type)/D(type) éditable, Enregistrer / Réinitialiser.
+- `ui/widgets/constraint_grid.py` (§5.3 niveau 2) : grille 7×28 peignable par sélection
+  glissée (catégorie colorée), annulation par pile, Enregistrer fusionne les cellules
+  contiguës en contraintes hebdomadaires (convertisseurs purs testés) — troisième onglet
+  de la vue Contraintes, synchronisé avec le tableau.
+- Vérification GUI réelle : les 6 vues s'affichent avec les 4 cours importés.
+
+**Prochaine étape — Phase 6 :** export .ics, notification tray, sauvegarde/restauration.
+
+---
+
 ## 2026-09-01 — Phase 4 : vue Planning + recalcul incrémental
 
 - 13 nouveaux tests (`test_rebalance.py`, `test_ui_schedule.py`) : 86 au total, verts.

@@ -200,11 +200,17 @@ class ConstraintsView(QWidget):
         super().__init__(parent)
         self.conn = conn
 
+        from planner.ui.widgets.constraint_grid import ConstraintGrid
+
         self.weekly_table = _ConstraintTable(conn, weekly=True)
         self.exception_table = _ConstraintTable(conn, weekly=False)
+        settings = EngineSettings()
+        self.grid = ConstraintGrid(conn, settings.wake_start, settings.wake_end)
         tabs = QTabWidget()
         tabs.addTab(self.weekly_table, "Hebdomadaires")
         tabs.addTab(self.exception_table, "Exceptions ponctuelles")
+        tabs.addTab(self.grid, "Grille (peindre)")
+        self.grid.saved.connect(self._on_grid_saved)
 
         self.free_label = QLabel()
 
@@ -219,9 +225,16 @@ class ConstraintsView(QWidget):
     def refresh(self) -> None:
         self.weekly_table.refresh()
         self.exception_table.refresh()
+        self.grid.reload()
         self._update_free_time()
 
     def _on_changed(self):
+        self.grid.reload()
+        self._update_free_time()
+        self.changed.emit()
+
+    def _on_grid_saved(self):
+        self.weekly_table.refresh()
         self._update_free_time()
         self.changed.emit()
 

@@ -96,3 +96,55 @@ class EngineSettings:
 
     def h_jour_max(self, day_weekday: int) -> float:
         return self.h_jour_max_weekend if day_weekday >= 5 else self.h_jour_max_week
+
+    # ------------------------------------------------------------ persistance
+
+    def to_dict(self) -> dict:
+        from dataclasses import asdict
+
+        data = asdict(self)
+        data["wake_start"] = self.wake_start.strftime("%H:%M")
+        data["wake_end"] = self.wake_end.strftime("%H:%M")
+        data["hour_penalty"] = {str(k): v for k, v in self.hour_penalty.items()}
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> EngineSettings:
+        from dataclasses import fields
+
+        known = {f.name for f in fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known}
+        if "wake_start" in kwargs:
+            kwargs["wake_start"] = time.fromisoformat(kwargs["wake_start"])
+        if "wake_end" in kwargs:
+            kwargs["wake_end"] = time.fromisoformat(kwargs["wake_end"])
+        if "hour_penalty" in kwargs:
+            kwargs["hour_penalty"] = {int(k): float(v)
+                                      for k, v in kwargs["hour_penalty"].items()}
+        return cls(**kwargs)
+
+
+SETTINGS_KEY = "engine_settings"
+
+
+def load_engine_settings(conn) -> EngineSettings:
+    """Paramètres persistés en base, ou les défauts de §4.9."""
+    import json
+
+    from planner.storage import repositories as repos
+
+    raw = repos.get_setting(conn, SETTINGS_KEY)
+    if raw is None:
+        return EngineSettings()
+    try:
+        return EngineSettings.from_dict(json.loads(raw))
+    except (ValueError, TypeError, KeyError):
+        return EngineSettings()
+
+
+def save_engine_settings(conn, settings: EngineSettings) -> None:
+    import json
+
+    from planner.storage import repositories as repos
+
+    repos.set_setting(conn, SETTINGS_KEY, json.dumps(settings.to_dict()))

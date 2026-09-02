@@ -11,7 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt
 from PySide6.QtGui import QBrush, QColor
 
-from planner.config import EngineSettings
+from planner.config import EngineSettings, load_engine_settings
 from planner.scheduler.workload import total_hours
 from planner.storage import repositories as repos
 
@@ -41,6 +41,7 @@ class CourseTreeModel(QAbstractItemModel):
 
     def reload(self) -> None:
         self.beginResetModel()
+        self.settings = load_engine_settings(self.conn)
         self.courses = repos.list_courses(self.conn)
         self.evals_by_course = {
             c.id: repos.list_evaluations(self.conn, course_id=c.id) for c in self.courses
