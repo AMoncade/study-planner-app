@@ -139,6 +139,19 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export(args: argparse.Namespace) -> int:
+    from planner.export import export_ics
+
+    if not Path(args.db).exists():
+        print("Aucune base de données. Importer d'abord un fichier JSON.", file=sys.stderr)
+        return 1
+    conn = connect(args.db)
+    count = export_ics(conn, args.out)
+    conn.close()
+    print(f"{count} événement(s) exporté(s) vers {args.out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="planner", description="Plan-Études (CLI)")
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="chemin de la base SQLite")
@@ -150,6 +163,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_list = sub.add_parser("list", help="lister les cours et évaluations")
     p_list.set_defaults(func=cmd_list)
+
+    p_export = sub.add_parser("export", help="exporter blocs et échéances en .ics")
+    p_export.add_argument("--out", default="plan_etudes.ics", help="fichier de sortie")
+    p_export.set_defaults(func=cmd_export)
 
     p_plan = sub.add_parser("plan", help="générer le plan d'étude et l'afficher")
     p_plan.add_argument("--semaines", type=int, default=2, help="semaines à afficher")

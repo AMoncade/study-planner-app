@@ -278,6 +278,25 @@ class ScheduleView(QWidget):
                                   actual_minutes=dialog.minutes.value(),
                                   efficiency=dialog.efficiency.value())
 
+    def export_pdf(self, path: str) -> None:
+        """Exporte la semaine affichée en PDF (une page paysage)."""
+        from PySide6.QtCore import QMarginsF
+        from PySide6.QtGui import QPageLayout, QPageSize, QPainter, QPdfWriter
+
+        writer = QPdfWriter(path)
+        writer.setPageLayout(QPageLayout(
+            QPageSize(QPageSize.A4), QPageLayout.Landscape, QMarginsF(10, 10, 10, 10)
+        ))
+        painter = QPainter(writer)
+        pixmap = self.calendar.grab()
+        target = painter.viewport()
+        scaled = pixmap.size()
+        scaled.scale(target.size(), Qt.KeepAspectRatio)
+        painter.setViewport(target.x(), target.y(), scaled.width(), scaled.height())
+        painter.setWindow(pixmap.rect())
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+
     def _show_detail(self, block_id: int) -> None:
         block = self._blocks_by_id.get(block_id)
         if block is None:

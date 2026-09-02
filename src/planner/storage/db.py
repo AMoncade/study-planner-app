@@ -140,6 +140,15 @@ def migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"PRAGMA user_version = {number}")
 
 
+def restore_database(path: str | Path, backup: str | Path) -> None:
+    """Remplace la base par une sauvegarde. Toute connexion doit être fermée avant.
+
+    L'état courant est lui-même sauvegardé d'abord : une restauration ne détruit rien.
+    """
+    backup_database(path)
+    shutil.copy2(backup, path)
+
+
 def backup_database(path: str | Path) -> Path | None:
     """Copie horodatée du fichier .db dans <dossier>/backups/. None si la base n'existe pas."""
     src = Path(path)
@@ -149,5 +158,9 @@ def backup_database(path: str | Path) -> Path | None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     dest = dest_dir / f"{src.stem}-{stamp}{src.suffix}"
+    counter = 1
+    while dest.exists():  # deux sauvegardes dans la même seconde ne s'écrasent pas
+        dest = dest_dir / f"{src.stem}-{stamp}-{counter}{src.suffix}"
+        counter += 1
     shutil.copy2(src, dest)
     return dest

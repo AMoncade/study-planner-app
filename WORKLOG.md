@@ -4,6 +4,25 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 6 : export et intégrations locales
+
+- 3 nouveaux tests (`test_export.py`) : 104 au total, verts.
+- `export.py` : construction `.ics` (`icalendar`, déjà justifié en Phase 0) — un VEVENT
+  par bloc d'étude (les `skipped` exclus) + un par échéance (⚑, avec salle et durée).
+  CLI `python -m planner export --out plan.ics` ; 138 événements sur les 4 cours réels.
+- `ScheduleView.export_pdf` : semaine affichée rendue en PDF A4 paysage (`QPdfWriter`).
+- Barre d'outils (§5.0 complétée) : Importer · Recalculer · Exporter .ics · Exporter la
+  semaine en PDF · Sauvegarder la base · Restaurer… (avec confirmation ; l'état courant
+  est sauvegardé avant toute restauration, l'app se ferme pour recharger proprement).
+- `QSystemTrayIcon` + `notify_next_block()` : notification Windows du prochain bloc
+  planifié après un recalcul. Aucune dépendance externe.
+- **Bug corrigé au passage** : deux sauvegardes de base dans la même seconde
+  s'écrasaient (noms horodatés identiques) — suffixe compteur ajouté, testé.
+
+**Prochaine étape — Phase 7 :** packaging PyInstaller.
+
+---
+
 ## 2026-09-01 — Phase 5 : tableau de bord, paramètres, grille peignable
 
 - 15 nouveaux tests (`test_settings_io`, `test_constraint_grid`, `test_ui_phase5`) :
