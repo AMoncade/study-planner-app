@@ -152,6 +152,34 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync_restore(args: argparse.Namespace) -> int:
+    from planner.core.errors import LocalDataExistsError
+    from planner.storage.pg import connect_pg
+    from planner.sync import restore
+
+    backup_database(args.db)  # sauvegarde avant toute écriture (None si base absente)
+    sqlite_conn = connect(args.db)  # crée et migre le schéma SQLite si besoin
+    pg_conn = connect_pg(migrate=False)
+    try:
+        counters = restore(pg_conn, sqlite_conn, force=args.force)
+    except LocalDataExistsError as exc:
+        print(f"RESTAURATION REFUSÉE : {exc}", file=sys.stderr)
+        return 2
+    finally:
+        pg_conn.close()
+        sqlite_conn.close()
+    total = sum(counters.values())
+    detail = " · ".join(f"{table} {count}" for table, count in counters.items())
+    print(f"Restore Postgres → SQLite : {total} ligne(s) copiée(s) ({detail})")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from planner.doctor import run_doctor
+
+    return run_doctor(args.db)
+
+
 def cmd_pg_migrate(_args: argparse.Namespace) -> int:
     from planner.storage.pg import SCHEMA_VERSION_PG, connect_pg
 
@@ -243,6 +271,21 @@ def build_parser() -> argparse.ArgumentParser:
         "sync-pull", help="rapatrier les statuts de blocs cochés côté web"
     )
     p_pull.set_defaults(func=cmd_sync_pull)
+
+    p_restore = sub.add_parser(
+        "sync-restore",
+        help="reconstruire la base SQLite complète depuis Postgres (machine neuve)",
+    )
+    p_restore.add_argument(
+        "--force", action="store_true",
+        help="écraser une base SQLite locale non vide (sauvegardée d'abord)",
+    )
+    p_restore.set_defaults(func=cmd_sync_restore)
+
+    p_doctor = sub.add_parser(
+        "doctor", help="diagnostic d'environnement (aucune valeur sensible affichée)"
+    )
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_plan = sub.add_parser("plan", help="générer le plan d'étude et l'afficher")
     p_plan.add_argument("--semaines", type=int, default=2, help="semaines à afficher")

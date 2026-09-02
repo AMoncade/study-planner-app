@@ -4,6 +4,31 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 10 : reprise sur machine neuve (sync-restore, doctor, ETAT.md)
+
+- `sync.restore(pg_conn, sqlite_conn, force=False)` : inverse de push — reconstruit la
+  base SQLite complète depuis Postgres (7 tables, id conservés, transaction unique
+  SQLite, colonnes lues côté Postgres via information_schema puisque SQLite peut être
+  vide). Refuse si SQLite contient déjà des cours (`LocalDataExistsError`, nouvelle
+  exception) sauf `--force` ; la CLI `sync-restore` sauvegarde le fichier d'abord.
+  Testé : égalité table par table + identité des id, refus sans force (base intacte),
+  force qui passe, et compteurs SQLite corrects après restore (INTEGER PRIMARY KEY
+  repart de max+1 nativement — pas de recalage nécessaire, prouvé par insertion).
+- `doctor.py` + CLI `doctor` : Python, paquets de requirements.txt, clés d'environnement
+  (présente/absente SEULEMENT), avertissement si base de test = base réelle
+  (utilisateur+hôte via urllib.parse), base SQLite (chemin + comptes), Postgres
+  (connexion, version du schéma, comptes), blocs divergents (`unpulled_changes`).
+  Sortie ligne par ligne OK/ATTENTION/BLOQUANT, code non nul si bloquant.
+  Vérifié en réel : environnement sain, exit 0, aucune valeur affichée.
+- `docs/ETAT.md` : document de reprise (machine neuve pas à pas, lancement bureau/API/
+  téléphone, rituel push→cocher→pull, phases 0-10, décisions à ne pas défaire avec
+  leurs raisons, pièges connus — dont le conseil parfois faux d'unpulled_changes et le
+  champ note bidirectionnel — et les 3 tâches restantes).
+- README : lien vers ETAT.md + liste complète des commandes CLI.
+- 129 tests, exit 0 ; ruff propre.
+
+---
+
 ## 2026-09-02 — Phase 9 : API web + page mobile minimale
 
 - **Dépendances ajoutées** : `fastapi` + `uvicorn[standard]` (API mobile) dans

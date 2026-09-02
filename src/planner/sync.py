@@ -97,6 +97,52 @@ def push(sqlite_conn, pg_conn, force: bool = False) -> dict[str, int]:
     return counters
 
 
+def _pg_columns(pg_conn, table: str) -> list[str]:
+    """Colonnes d'une table lues côté Postgres — SQLite peut être vide (machine neuve)."""
+    rows = pg_conn.execute(
+        "SELECT column_name FROM information_schema.columns"
+        " WHERE table_schema = current_schema() AND table_name = ?"
+        " ORDER BY ordinal_position",
+        (table,),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def restore(pg_conn, sqlite_conn, force: bool = False) -> dict[str, int]:
+    """Reconstruit la base SQLite complète depuis Postgres (machine neuve).
+
+    Inverse de push : copie les 7 tables applicatives en CONSERVANT les id,
+    transaction unique côté SQLite. Refuse (LocalDataExistsError) si SQLite contient
+    déjà des cours, sauf force=True — le risque est d'écraser des données locales
+    plus récentes que la copie web.
+
+    Pas de compteur à recaler côté SQLite : INTEGER PRIMARY KEY y repart naturellement
+    de max(rowid)+1 après des insertions à id explicite (vérifié par test).
+    """
+    existing = sqlite_conn.execute("SELECT count(*) FROM courses").fetchone()[0]
+    if existing and not force:
+        from planner.core.errors import LocalDataExistsError
+
+        raise LocalDataExistsError(existing)
+    counters: dict[str, int] = {}
+    with sqlite_conn:  # transaction unique côté SQLite
+        for table in reversed(TABLES_IN_DEPENDENCY_ORDER):
+            sqlite_conn.execute(f"DELETE FROM {table}")
+        for table in TABLES_IN_DEPENDENCY_ORDER:
+            columns = _pg_columns(pg_conn, table)
+            rows = pg_conn.execute(
+                f"SELECT {', '.join(columns)} FROM {table} ORDER BY 1"
+            ).fetchall()
+            placeholders = ", ".join("?" for _ in columns)
+            insert = (
+                f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+            )
+            for row in rows:
+                sqlite_conn.execute(insert, tuple(row))
+            counters[table] = len(rows)
+    return counters
+
+
 def pull(pg_conn, sqlite_conn) -> dict[str, int]:
     """Rapatrie les statuts de blocs Postgres -> SQLite. Retourne les compteurs."""
     rows = pg_conn.execute(

@@ -15,6 +15,19 @@ class ImportBlockedError(PlannerError):
         super().__init__("; ".join(errors))
 
 
+class LocalDataExistsError(PlannerError):
+    """Restauration refusée : la base SQLite locale contient déjà des cours."""
+
+    def __init__(self, course_count: int):
+        self.course_count = course_count
+        super().__init__(
+            f"La base SQLite locale contient déjà {course_count} cours : restaurer "
+            "depuis Postgres écraserait des données locales possiblement plus "
+            "récentes. Relancer avec --force pour l'assumer (une sauvegarde est "
+            "faite d'abord)."
+        )
+
+
 class UnpulledChangesError(PlannerError):
     """Push refusé : des statuts cochés côté web n'ont pas encore été rapatriés."""
 

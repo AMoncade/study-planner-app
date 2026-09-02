@@ -33,6 +33,8 @@ py -3.12 -m venv .venv
 .venv/Scripts/python.exe -m pip install -e .
 ```
 
+> **Reprise du projet sur une autre machine : lire [`docs/ETAT.md`](docs/ETAT.md).**
+
 ## Utilisation
 
 ```
@@ -40,6 +42,11 @@ py -3.12 -m venv .venv
 .venv/Scripts/python.exe -m planner list                     # lister les évaluations
 .venv/Scripts/python.exe -m planner plan --semaines 2        # plan en ASCII (--save pour persister)
 .venv/Scripts/python.exe -m planner export --out plan.ics    # export calendrier
+.venv/Scripts/python.exe -m planner doctor                   # diagnostic d'environnement
+.venv/Scripts/python.exe -m planner pg-migrate               # migrations Postgres (déploiement)
+.venv/Scripts/python.exe -m planner sync-push [--force]      # répliquer SQLite -> Postgres
+.venv/Scripts/python.exe -m planner sync-pull                # rapatrier les statuts cochés
+.venv/Scripts/python.exe -m planner sync-restore [--force]   # reconstruire SQLite depuis Postgres
 .venv/Scripts/python.exe -m planner.app                      # interface graphique
 ```
 

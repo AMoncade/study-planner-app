@@ -191,3 +191,44 @@ def test_push_passes_when_nothing_unpulled(sqlite_conn, pg_conn):
 
     counters = push(sqlite_conn, pg_conn)  # sans force : rien en attente, doit passer
     assert counters["study_blocks"] > 100
+
+
+def test_restore_rebuilds_fresh_sqlite_identically(sqlite_conn, pg_conn):
+    from planner.storage.db import connect
+    from planner.sync import TABLES_IN_DEPENDENCY_ORDER, restore
+
+    fresh = connect(":memory:")
+    counters = restore(pg_conn, fresh)
+    for table in TABLES_IN_DEPENDENCY_ORDER:
+        pg_count = pg_conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+        assert counters[table] == pg_count, table
+    # égalité table par table ET identité des id
+    assert _snapshot(fresh) == _snapshot(pg_conn)
+    for table in ("courses", "evaluations", "study_blocks"):
+        pg_ids = [r[0] for r in pg_conn.execute(f"SELECT id FROM {table} ORDER BY id")]
+        fresh_ids = [r[0] for r in fresh.execute(f"SELECT id FROM {table} ORDER BY id")]
+        assert pg_ids == fresh_ids, table
+
+    # les compteurs SQLite repartent bien après des insertions à id explicite
+    from planner.storage import repositories as repos
+
+    max_id = fresh.execute("SELECT max(id) FROM study_blocks").fetchone()[0]
+    ev_id = fresh.execute("SELECT id FROM evaluations ORDER BY id").fetchone()[0]
+    new_id = repos.insert_study_block(
+        fresh, ev_id, datetime(2026, 9, 21, 9, 0), datetime(2026, 9, 21, 10, 0)
+    )
+    assert new_id == max_id + 1
+    fresh.close()
+
+
+def test_restore_refuses_nonempty_sqlite_without_force(sqlite_conn, pg_conn):
+    from planner.core.errors import LocalDataExistsError
+    from planner.sync import restore
+
+    before = _snapshot(sqlite_conn)
+    with pytest.raises(LocalDataExistsError):
+        restore(pg_conn, sqlite_conn)
+    assert _snapshot(sqlite_conn) == before  # rien touché
+
+    restore(pg_conn, sqlite_conn, force=True)  # avec force : passe
+    assert _snapshot(sqlite_conn) == _snapshot(pg_conn)
