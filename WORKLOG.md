@@ -4,6 +4,33 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 8a : adaptateur Postgres (Supabase) à côté de SQLite
+
+- **Dépendances ajoutées** : `psycopg[binary]>=3.2` (client Postgres pour le backend web
+  futur) et `python-dotenv>=1.0` (lecture de DATABASE_URL depuis `.env`, jamais commité —
+  entrée `.env` ajoutée au `.gitignore`).
+- `storage/pg.py` : `connect_pg()` (dotenv + `prepare_threshold=None`, obligatoire avec
+  le pooler Supabase en mode transaction) ; `PgConnection` qui imite le contrat sqlite3
+  consommé par `repositories.py` — `?`→`%s`, `RETURNING id`→`lastrowid` (sauf tables sans
+  id), proxy de curseur (fetchone/fetchall/iter/rowcount), et surtout `with conn:` qui
+  committe/rollback SANS fermer (le `with` psycopg3 natif ferme la connexion) ;
+  `MIGRATIONS_PG` (IDENTITY, DOUBLE PRECISION, dates en TEXT ISO conservées) ;
+  `migrate_pg` via table `schema_version` (remplace PRAGMA user_version).
+- **Incompatibilité absorbée par l'adaptateur** : `end` est un mot réservé Postgres
+  (colonnes `sessions.end`, `constraints.end`) → réécriture `\bend\b` → `"end"` dans
+  chaque SQL (les identifiants `end_at`/`end_date` ne sont pas touchés).
+- **Limite connue, hors périmètre** : `cross_course_conflicts` (validation, règle 9)
+  utilise `date(a.due_at)` sur du TEXT — valide en SQLite, pas en Postgres. Non exercé
+  par le backend web actuel (CLI/dashboard seulement) ; à adapter si un jour le
+  tableau de bord passe sur Postgres.
+- `tests/test_pg_smoke.py` (sauté sans DATABASE_URL) : truncate ré-exécutable, import
+  des 4 fixtures réelles (4 cours / 28 évaluations), plan complet (> 100 blocs), CRUD
+  de blocs, et le piège `with conn:` + requête suivante. **5/5 verts contre le vrai
+  pooler Supabase** ; les 104 tests SQLite restent verts (109 au total).
+- Aucun module existant modifié : `db.py`, `repositories.py` et l'app bureau sont intacts.
+
+---
+
 ## 2026-09-01 — Phase 7 : packaging Windows
 
 - **Dépendance ajoutée** : `pyinstaller==6.*` dans `requirements-dev.txt` — packaging

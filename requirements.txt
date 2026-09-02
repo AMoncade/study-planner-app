@@ -3,3 +3,5 @@ PySide6>=6.7,<7          # interface graphique (LGPL)
 jsonschema>=4.23         # validation stricte du JSON produit par Claude
 python-dateutil>=2.9     # arithmétique de dates / récurrences
 icalendar>=6.0           # export .ics (Phase 6)
+psycopg[binary]>=3.2
+python-dotenv>=1.0
