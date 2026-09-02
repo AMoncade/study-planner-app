@@ -4,6 +4,31 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-01 — Phase 3 : UI — coquille, Importer, Cours, Contraintes (tableau)
+
+- 7 tests pytest-qt (`test_ui_views.py`) : navigation, import via la vue, rejet d'un
+  fichier invalide, édition difficulté/override persistée, dialogue contrainte,
+  rafraîchissement. 73 tests au total, tous verts.
+- `ui/main_window.py` : `QMainWindow` + barre latérale `QListWidget` + `QStackedWidget`
+  (Importer / Cours / Contraintes / Planning-placeholder), barre d'état (n cours,
+  n évaluations, n sans date), signal `data_changed`.
+- `ui/views/import_view.py` (§5.1) : parcourir + glisser-déposer, bouton « Copier le
+  prompt d'extraction », rapport de validation ✅/⚠/❌, aperçu des évaluations avec
+  `source_excerpt` en infobulle, import avec résumé de réconciliation.
+- `ui/models/course_tree.py` + `ui/views/courses_view.py` (§5.2) : `QAbstractItemModel`
+  maison cours → évaluations ; colonnes éditables difficulté (1–5), ×effort (0,5–2,0),
+  override (h) — persistées et charge recalculée en direct ; jaune = confiance < high,
+  rouge = date manquante ; panneau de détail (matière, ressources, notes, extrait).
+- `ui/views/constraints_view.py` (§5.3 niveau 1) : deux onglets (hebdomadaires /
+  exceptions ponctuelles), `ConstraintDialog` (§5.7), Ajouter/Modifier/Dupliquer/
+  Supprimer, étiquette « temps libre disponible cette semaine » calculée par le moteur.
+- `ui/style.qss` : thème sombre sans composant tiers. `app.py` : `python -m planner.app`.
+- GUI vérifiée en lancement réel avec les 4 cours importés.
+
+**Prochaine étape — Phase 4 :** vue Planning (calendrier hebdo dessiné) + rebalance.
+
+---
+
 ## 2026-09-01 — Phase 2 : moteur de planification (sans UI)
 
 - Tests écrits d'abord (`test_workload/curve/availability/placer/integration.py`) :
