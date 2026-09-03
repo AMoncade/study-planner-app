@@ -24,8 +24,9 @@ COL_DIFFICULTY, COL_EFFORT, COL_OVERRIDE, COL_CONFIDENCE = 5, 6, 7, 8
 
 _ROOT = QModelIndex()
 
-WARNING_BRUSH = QBrush(QColor(120, 100, 20))
-ERROR_BRUSH = QBrush(QColor(130, 45, 45))
+# Lavis de statut (jetons phase 13) : attention #fab219, critique #d03b3b.
+WARNING_BRUSH = QBrush(QColor(250, 178, 25, 36))
+ERROR_BRUSH = QBrush(QColor(208, 59, 59, 46))
 
 
 class CourseTreeModel(QAbstractItemModel):

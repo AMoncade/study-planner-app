@@ -44,18 +44,25 @@ class CoursesView(QWidget):
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
 
+        title = QLabel("Cours et évaluations")
+        title.setProperty("role", "viewTitle")
+
         hint = QLabel(
             "Double-clic pour éditer : difficulté et × effort sur une ligne de cours, "
-            "override (h) sur une évaluation. Jaune = confiance à vérifier, "
-            "rouge = date à saisir."
+            "override (h) sur une évaluation. Fond ambré = confiance à vérifier, "
+            "fond rouge = date à saisir."
         )
         hint.setWordWrap(True)
+        hint.setProperty("role", "caption")
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
+        layout.addWidget(title)
         layout.addWidget(hint)
         row = QHBoxLayout()
         row.addWidget(splitter)
-        layout.addLayout(row)
+        layout.addLayout(row, 1)
 
         self.tree.selectionModel().currentChanged.connect(self._show_detail)
 

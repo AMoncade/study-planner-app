@@ -725,6 +725,13 @@ C1..C5            # poids de la fonction de coût
 Barre d'état : dernière génération, taux de couverture, nombre d'alertes. Thème sombre via
 `style.qss`. Aucun composant tiers.
 
+Depuis la phase 13, la barre latérale est un panneau **fixe de 232 px** (plus de
+`QSplitter`) : en-tête pastille « P » bleu UdeM + titre + session, navigation à icônes SVG
+inline (`ui/icons.py`), pied « ● Synchronisé · il y a N min » d'après l'horodatage de la
+base. Les jetons de couleur du thème vivent dans `ui/theme.py` (repris en dur dans
+`style.qss`) ; les statuts s'affichent via le widget `Badge` (icône + texte, jamais la
+couleur seule) et les couleurs de cours/catégories sont centralisées là aussi.
+
 Règle d'architecture UI : **les vues ne contiennent aucune logique métier.** Elles appellent
 `core` et `scheduler`, puis affichent le résultat. Tout calcul de plus de 200 ms part dans un
 `QThread` avec barre de progression — le recalcul complet en fait partie dès qu'il y a un

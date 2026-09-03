@@ -79,10 +79,20 @@ class ConstraintDialog(QDialog):
                 d = constraint.specific_date
                 self.date_edit.setDate(QDate(d.year, d.month, d.day))
 
+    def _set_error(self, widget, error: bool) -> None:
+        """Marque (ou efface) la bordure d'erreur via la propriété QSS `error`."""
+        widget.setProperty("error", error)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+
     def _validate(self):
         if self.start.time() >= self.end.time():
-            self.start.setStyleSheet("border: 1px solid red")
+            self._set_error(self.start, True)
+            self._set_error(self.end, True)
             return
+        # bordure réinitialisée dès que l'erreur est corrigée
+        self._set_error(self.start, False)
+        self._set_error(self.end, False)
         if not self.label_edit.text().strip():
             self.label_edit.setText(self.category.currentText())
         self.accept()
@@ -116,6 +126,8 @@ class _ConstraintTable(QWidget):
         )
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(34)
+        self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.doubleClicked.connect(lambda _i: self._edit())
@@ -127,14 +139,18 @@ class _ConstraintTable(QWidget):
         duplicate = QPushButton("Dupliquer")
         duplicate.clicked.connect(self._duplicate)
         remove = QPushButton("Supprimer")
+        remove.setProperty("kind", "danger")
         remove.clicked.connect(self._remove)
 
         buttons = QHBoxLayout()
+        buttons.setSpacing(8)
         for b in (add, edit, duplicate, remove):
             buttons.addWidget(b)
         buttons.addStretch()
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(8)
         layout.addLayout(buttons)
         layout.addWidget(self.table)
         self.refresh()
@@ -212,9 +228,16 @@ class ConstraintsView(QWidget):
         tabs.addTab(self.grid, "Grille (peindre)")
         self.grid.saved.connect(self._on_grid_saved)
 
+        title = QLabel("Contraintes")
+        title.setProperty("role", "viewTitle")
+
         self.free_label = QLabel()
+        self.free_label.setProperty("role", "secondary")
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
+        layout.addWidget(title)
         layout.addWidget(tabs)
         layout.addWidget(self.free_label)
 

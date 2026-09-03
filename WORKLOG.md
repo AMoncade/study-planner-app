@@ -4,6 +4,47 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 13 : refonte visuelle (thème sombre × bleu UdeM)
+
+- **Jetons** : `ui/theme.py` centralise fonds (#131720/#10141c/#161b25/#1a202b),
+  séparateurs #232a36, bordures #2d3542, texte (#e8ebf0/#9da6b5/#6a7484), accents
+  (marque #0057AC, primaire #1f6fd0, interactif #3987e5), statuts (#0ca30c/#fab219/
+  #ec835a/#d03b3b), couleurs de cours validées daltonisme (#d95926/#199e70/#c98500/
+  #9085e9) et catégories de contraintes. `week_calendar.COURSE_COLORS` et
+  `constraint_grid.CATEGORY_COLORS` réexportent depuis `theme`.
+- **`style.qss` réécrit** : Segoe UI, boutons 32 px rayon 7, un primaire par vue
+  (`QPushButton[kind="primary"]`), bouton danger, focus 2 px #3987e5, champs avec
+  propriété `error`, QToolBar/QGroupBox/QProgressBar/QScrollBar/QSplitter/QMenu/
+  QDialog/QCheckBox/QComboBox/QHeaderView couverts, libellés typés par propriété
+  `role` (viewTitle 20 px, sectionTitle, secondary, caption, tuiles).
+- **Barre latérale fixe 232 px** (`main_window.py`) : pastille « P » UdeM + titre +
+  session, 6 icônes SVG inline 18 px trait 1.8 (`ui/icons.py`, rendu QSvgRenderer 2×),
+  item actif en lavis accent, pied « ● Synchronisé · il y a N min » (mtime de la base).
+  Tray en #0057AC. Le `QSplitter` rétrécissable est remplacé par un layout fixe.
+- **`Badge`** (`ui/widgets/badge.py`) : icône SVG + texte, fond teinté 10 %, bordure
+  40 %, rayon 12 — remplace les emoji ✅⚠❌🔴🟠🟡 dans import, paramètres, planning,
+  tableau de bord et grille ; cellules du rapport d'import en icône + mot.
+- **WeekCalendar** : fond #161b25, gridlines chaque heure, heures 10 px, colonne du
+  jour teintée 5 %, ligne « maintenant » 2 px + point (via `now_provider` injectable),
+  blocs 16 %/55 % (fait 34 %/80 % + ✓, manqué 8 % + texte discret), séances et
+  contraintes en hachures grises 45°, rayon 6, texte 11 px 600 + heure tabulaire 10 px.
+- **Grille de contraintes** : rangées 30 px, chips de catégorie arrondies à pastille
+  (`CategoryChips`, API `currentText`/`setCurrentText` compatible tests), Ctrl+Z
+  branché sur l'undo existant, en-têtes lisibles.
+- **Tableau de bord** : 4 tuiles (Cette semaine, Couverture — `metrics.coverage` du
+  recalcul à blanc déjà exécuté pour les alertes —, Prochaine échéance, Assiduité
+  14 jours), alertes en badges, barres de progression 8 px en couleur de cours,
+  aucune nouvelle métrique lourde.
+- **Bug corrigé** (`constraints_view.py`) : la bordure d'erreur du dialogue de
+  contrainte est maintenant réinitialisée quand l'erreur est corrigée (propriété QSS
+  `error` + repolish, début **et** fin marqués).
+- Marges 24 px / espacement 14 px sur toutes les vues, lignes de table 34 px,
+  `setAlternatingRowColors` ; `scripts/screenshots.py` produit `screenshots/*.png`
+  (6 vues + onglet grille) pour validation. `ARCHITECTURE.md` §5.0 mis à jour.
+  Aucune dépendance ajoutée (QtSvg fait partie de PySide6).
+
+---
+
 ## 2026-09-02 — Phase 12 : import de l'horaire .ics du centre étudiant
 
 - `core/ics_import.py` : parse le `.ics` UdeM (icalendar), développe les RRULE avec

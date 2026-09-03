@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from planner.config import EngineSettings, load_engine_settings, save_engine_settings
 from planner.core.models import EVALUATION_TYPES
+from planner.ui.widgets.badge import Badge
 
 
 def _spin(minimum: float, maximum: float, step: float = 0.05) -> QDoubleSpinBox:
@@ -87,22 +88,35 @@ class SettingsView(QWidget):
         self.type_table.setHorizontalHeaderLabels(["Charge de base (h)", "Fenêtre (jours)"])
         self.type_table.setVerticalHeaderLabels(list(EVALUATION_TYPES))
         self.type_table.horizontalHeader().setStretchLastSection(True)
+        self.type_table.verticalHeader().setDefaultSectionSize(34)
+        self.type_table.setAlternatingRowColors(True)
+        self.type_table.setMinimumHeight(34 * (len(EVALUATION_TYPES) + 1) + 12)
         type_box = QGroupBox("Charges de base B(type) et fenêtres D(type)")
         type_layout = QVBoxLayout(type_box)
         type_layout.addWidget(self.type_table)
 
+        title = QLabel("Paramètres")
+        title.setProperty("role", "viewTitle")
+
         save = QPushButton("Enregistrer")
+        save.setProperty("kind", "primary")
         save.clicked.connect(self._save)
         reset = QPushButton("Réinitialiser aux valeurs par défaut")
         reset.clicked.connect(self._reset)
-        self.feedback = QLabel()
+        self.feedback = Badge(kind="neutral")
+        self.feedback.hide()
         buttons = QHBoxLayout()
+        buttons.setSpacing(8)
         buttons.addWidget(save)
         buttons.addWidget(reset)
-        buttons.addWidget(self.feedback, 1)
+        buttons.addWidget(self.feedback)
+        buttons.addStretch(1)
 
         content = QWidget()
         layout = QVBoxLayout(content)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
+        layout.addWidget(title)
         layout.addWidget(day_box)
         layout.addWidget(algo_box)
         layout.addWidget(cost_box)
@@ -112,8 +126,14 @@ class SettingsView(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
         outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
         outer.addWidget(scroll, 1)
-        outer.addLayout(buttons)
+        footer = QWidget()
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(24, 10, 24, 14)
+        footer_layout.addLayout(buttons)
+        outer.addWidget(footer)
 
         self._load(load_engine_settings(conn))
 
@@ -169,9 +189,14 @@ class SettingsView(QWidget):
 
     def _save(self) -> None:
         save_engine_settings(self.conn, self.current_settings())
-        self.feedback.setText("✅ Paramètres enregistrés — recalculer le plan pour les appliquer.")
+        self.feedback.set_status(
+            "Paramètres enregistrés — recalculer le plan pour les appliquer.", "ok"
+        )
+        self.feedback.show()
         self.changed.emit()
 
     def _reset(self) -> None:
         self._load(EngineSettings())
-        self.feedback.setText("Valeurs par défaut restaurées (non enregistrées).")
+        self.feedback.set_status("Valeurs par défaut restaurées (non enregistrées).",
+                                 "neutral")
+        self.feedback.show()
