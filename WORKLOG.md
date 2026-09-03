@@ -4,6 +4,34 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 12 : import de l'horaire .ics du centre étudiant
+
+- `core/ics_import.py` : parse le `.ics` UdeM (icalendar), développe les RRULE avec
+  dateutil (EXDATE → `except_dates`, une séance par jour de semaine, bornes = première/
+  dernière occurrence), convertit les heures `America/Toronto` en heure locale naïve
+  (zoneinfo, stdlib). Rattachement au cours par sigle dans SUMMARY/DESCRIPTION
+  (`[A-Z]{2,4}[ -]?\d{4}` normalisé). Les séances vont dans la table `sessions` (pas dans
+  `constraints` : le moteur les bloque déjà via §4.4 et elles restent liées au cours).
+  Réconciliation par `(weekday, start, end)` : ré-import idempotent, `kind` du JSON
+  conservé à la mise à jour, séances hors `.ics` jamais supprimées.
+- Examens (*intra*/*final*/*quiz*/*examen*, insensible casse/accents) : pas de séance ;
+  confrontation aux évaluations de type compatible → confirmé / conflit / sans évaluation
+  connue. `--apply-exam-dates` applique la date du `.ics` sur la candidate la plus proche
+  et invalide ses blocs planifiés (même logique que §2.5).
+- CLI `import-ics <fichier.ics> [--apply-exam-dates]` (avec sauvegarde préalable de la
+  base) ; rapport texte partagé (`format_ics_report`). Vue Importer : bouton
+  « Importer un horaire (.ics)… » + dépôt d'un `.ics` routé par extension, rapport dans
+  la zone de statut — volontairement minimal (refonte visuelle sur une autre branche).
+- Nouvelles fonctions repos : `insert_session`, `update_session_schedule`,
+  `update_evaluation_due_at`. Aucune dépendance ajoutée (icalendar et python-dateutil
+  étaient déjà là). ARCHITECTURE : nouveau §2.7, §5.1 amendé.
+- Fixture `tests/fixtures/horaire_a26.ics` (4 cours MAT, RRULE hebdo sept→déc, EXDATE
+  Action de grâce + relâche, examen confirmé, examen en conflit, quiz sans évaluation,
+  sigle inconnu IFT-1015, rendez-vous sans sigle) ; 11 tests `test_ics_import.py` +
+  1 test UI. 140 tests, exit 0 ; ruff propre.
+
+---
+
 ## 2026-09-02 — Phase 10 : reprise sur machine neuve (sync-restore, doctor, ETAT.md)
 
 - `sync.restore(pg_conn, sqlite_conn, force=False)` : inverse de push — reconstruit la

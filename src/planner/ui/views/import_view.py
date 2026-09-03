@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from planner.core.errors import ImportBlockedError
+from planner.core.ics_import import format_ics_report, import_ics_file
 from planner.core.importer import import_course_data
 from planner.core.validation import validate_document
 from planner.resources import resource_path
@@ -37,11 +38,14 @@ class ImportView(QWidget):
         self._data: dict | None = None
         self.setAcceptDrops(True)
 
-        self.status = QLabel("Déposer un fichier .json ici, ou cliquer sur « Parcourir… ».")
+        self.status = QLabel("Déposer un fichier .json ou .ics ici, "
+                             "ou cliquer sur « Parcourir… ».")
         self.status.setWordWrap(True)
 
         browse = QPushButton("Parcourir…")
         browse.clicked.connect(self._browse)
+        browse_ics = QPushButton("Importer un horaire (.ics)…")
+        browse_ics.clicked.connect(self._browse_ics)
         copy_prompt = QPushButton("Copier le prompt d'extraction")
         copy_prompt.clicked.connect(self._copy_prompt)
         self.import_button = QPushButton("Importer")
@@ -50,6 +54,7 @@ class ImportView(QWidget):
 
         buttons = QHBoxLayout()
         buttons.addWidget(browse)
+        buttons.addWidget(browse_ics)
         buttons.addWidget(copy_prompt)
         buttons.addStretch()
         buttons.addWidget(self.import_button)
@@ -82,7 +87,11 @@ class ImportView(QWidget):
 
     def dropEvent(self, event):
         for url in event.mimeData().urls():
-            self.load_file(Path(url.toLocalFile()))
+            path = Path(url.toLocalFile())
+            if path.suffix.lower() == ".ics":
+                self.import_ics(path)
+            else:
+                self.load_file(path)
             break
 
     def _browse(self):
@@ -91,6 +100,28 @@ class ImportView(QWidget):
         )
         if name:
             self.load_file(Path(name))
+
+    def _browse_ics(self):
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Choisir l'horaire .ics du centre étudiant", "", "Calendrier (*.ics)"
+        )
+        if name:
+            self.import_ics(Path(name))
+
+    def import_ics(self, path: Path) -> None:
+        """Importe directement un horaire .ics et affiche le rapport dans la zone de statut."""
+        try:
+            report = import_ics_file(self.conn, path, today=date.today())
+        except ImportBlockedError as exc:
+            self.status.setText("❌ Import .ics refusé : " + " ; ".join(exc.errors))
+            return
+        created = sum(r.created for r in report.courses.values())
+        updated = sum(r.updated for r in report.courses.values())
+        summary = (f"✅ {path.name} : {created} séance(s) créée(s) · "
+                   f"{updated} mise(s) à jour · {len(report.exams)} examen(s) détecté(s) · "
+                   f"{len(report.ignored)} événement(s) ignoré(s).")
+        self.status.setText(summary + "\n" + format_ics_report(report))
+        self.imported.emit("ics")
 
     def _copy_prompt(self):
         QApplication.clipboard().setText(PROMPT_PATH.read_text(encoding="utf-8"))

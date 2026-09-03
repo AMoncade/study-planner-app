@@ -52,6 +52,18 @@ def test_import_view_loads_and_imports(qtbot, conn):
     assert "4 évaluations" in window.statusBar().currentMessage()
 
 
+def test_import_view_imports_ics_schedule(qtbot, loaded_conn):
+    # MAT1720 est en base sans séance ; l'horaire .ics doit les créer.
+    window = MainWindow(loaded_conn)
+    qtbot.addWidget(window)
+    view = window.import_view
+    with qtbot.waitSignal(view.imported, timeout=2000):
+        view.import_ics(FIXTURES / "horaire_a26.ics")
+    assert "séance(s) créée(s)" in view.status.text()
+    course = next(c for c in repos.list_courses(loaded_conn) if c.code == "MAT1720")
+    assert len(course.sessions) == 1
+
+
 def test_import_view_rejects_bad_file(qtbot, conn, tmp_path):
     window = MainWindow(conn)
     qtbot.addWidget(window)

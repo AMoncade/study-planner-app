@@ -341,6 +341,31 @@ Sa structure :
 5. Instruction finale : « Vérifie que la somme des `weight` vaut 100. Si non, ajoute un
    warning explicite au lieu d'ajuster les valeurs. »
 
+### 2.7 Import de l'horaire `.ics` du centre étudiant (Phase 12)
+
+Deuxième source de données, complémentaire au JSON : le fichier `.ics` exporté du centre
+étudiant UdeM fournit les **séances de cours réelles** (le JSON les connaît rarement).
+`planner import-ics <fichier.ics>` (cœur : `core/ics_import.py`) applique ces règles :
+
+- **Rattachement au cours** : sigle détecté dans `SUMMARY` puis `DESCRIPTION`
+  (`[A-Z]{2,4}[ -]?\d{4}`, normalisé sans séparateur : `IFT-1015` → `IFT1015`). Événement
+  sans sigle, ou sigle absent de la base → **ignoré mais listé** dans le rapport ; l'import
+  ne crée jamais de cours.
+- **Heures** : `DTSTART`/`DTEND` avec fuseau (`America/Toronto`) sont convertis en
+  **heure locale naïve**, la convention de toute l'app.
+- **Récurrences** : `RRULE` développée avec `dateutil` (une séance par jour de semaine ;
+  `start_date`/`end_date` = première/dernière occurrence) ; `EXDATE` → `except_dates`.
+- **Examens** : si le `SUMMARY` contient *intra*, *final*, *quiz* ou *examen* (insensible
+  à la casse et aux accents), **aucune séance n'est créée** ; l'événement est confronté aux
+  évaluations du cours de type compatible : dates égales → *match confirmé* ; dates
+  différentes → *conflit*, signalé seulement (la date du `.ics` n'écrase la base qu'avec
+  `--apply-exam-dates`, qui invalide alors les blocs planifiés comme en §2.5) ; aucune
+  évaluation compatible → *examen sans évaluation connue*.
+- **Réconciliation** : upsert par `(weekday, start, end)` — ré-importer le même fichier ne
+  duplique rien ; une séance existante au même créneau est mise à jour (salle, bornes,
+  exceptions) mais son `kind` réglé par le JSON est conservé ; les séances absentes du
+  `.ics` ne sont **jamais supprimées**.
+
 ---
 
 ## 3. Modèle interne et stockage
@@ -709,7 +734,9 @@ trimestre entier.
 
 ### 5.1 Vue **Importer**
 
-- Zone de dépôt (glisser-déposer) + bouton *Parcourir* pour un `.json`.
+- Zone de dépôt (glisser-déposer) + bouton *Parcourir* pour un `.json` ; la même zone
+  accepte un `.ics` du centre étudiant (bouton *Importer un horaire (.ics)…*), importé
+  directement avec le rapport de §2.7 affiché dans la zone de statut.
 - Lien visible *Copier le prompt d'extraction* (met `PROMPT_EXTRACTION.md` dans le presse-papiers).
 - **Rapport de validation** en tableau : une ligne par règle, statut ✅ / ⚠ / ❌, message.
 - Aperçu des évaluations détectées avant confirmation, `source_excerpt` en infobulle.
