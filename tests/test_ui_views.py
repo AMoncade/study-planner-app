@@ -32,7 +32,7 @@ def loaded_conn(conn):
 def test_main_window_opens_and_navigates(qtbot, loaded_conn):
     window = MainWindow(loaded_conn)
     qtbot.addWidget(window)
-    assert window.stack.count() == 6
+    assert window.stack.count() == 7
     for row in range(window.nav.count()):
         window.nav.setCurrentRow(row)
         assert window.stack.currentIndex() == row
@@ -123,3 +123,45 @@ def test_constraints_view_lists_and_free_time(qtbot, loaded_conn):
     view.refresh()
     assert view.weekly_table.table.rowCount() == 1
     assert "Temps libre" in view.free_label.text()
+
+
+# ------------------------------------------------------------------ vue Statistiques
+
+def test_stats_view_refreshes_on_empty_db(qtbot, conn):
+    from datetime import datetime
+
+    from planner.ui.views.stats_view import StatsView
+
+    view = StatsView(conn)
+    qtbot.addWidget(view)
+    view.refresh(now=datetime(2026, 9, 3, 12, 0))
+    # base vide : les tuiles restent lisibles et l'état vide guide l'utilisateur
+    assert view.tile_hours.value.text() == "0 h"
+    assert "importe un cours" in view.weekly_empty.text()
+    assert not view.week_chart.isVisibleTo(view)
+
+
+def test_stats_view_refreshes_on_populated_db(qtbot, loaded_conn):
+    from datetime import datetime
+
+    from planner.ui.views.stats_view import StatsView
+
+    course = repos.list_courses(loaded_conn)[0]
+    evals = repos.list_evaluations(loaded_conn, course_id=course.id)
+    block_id = repos.insert_study_block(
+        loaded_conn, evals[0].id, datetime(2026, 9, 1, 9), datetime(2026, 9, 1, 11)
+    )
+    repos.update_study_block_status(loaded_conn, block_id, "done",
+                                    actual_minutes=90, efficiency=0.8)
+    skipped_id = repos.insert_study_block(
+        loaded_conn, evals[0].id, datetime(2026, 9, 2, 9), datetime(2026, 9, 2, 10)
+    )
+    repos.update_study_block_status(loaded_conn, skipped_id, "skipped")
+
+    view = StatsView(loaded_conn)
+    qtbot.addWidget(view)
+    view.refresh(now=datetime(2026, 9, 3, 12, 0))
+    assert view.tile_hours.value.text() == "1.5 h"
+    assert view.tile_completion.value.text() == "50 %"
+    assert view.tile_efficiency.value.text() == "80 %"
+    assert view.tile_delta.value.text().startswith("−")  # 1.5 h faites / 3 h échues

@@ -26,6 +26,7 @@ from planner.ui.views.dashboard_view import DashboardView
 from planner.ui.views.import_view import ImportView
 from planner.ui.views.schedule_view import ScheduleView
 from planner.ui.views.settings_view import SettingsView
+from planner.ui.views.stats_view import StatsView
 
 STYLE_PATH = resource_path("planner/ui/style.qss")
 
@@ -38,6 +39,7 @@ NAV_ITEMS = (
     ("Cours et évaluations", "book"),
     ("Contraintes", "timetable"),
     ("Planning", "calendar"),
+    ("Statistiques", "chart"),
     ("Paramètres", "gear"),
 )
 
@@ -56,15 +58,17 @@ class MainWindow(QMainWindow):
         self.courses_view = CoursesView(conn)
         self.constraints_view = ConstraintsView(conn)
         self.schedule_view = ScheduleView(conn)
+        self.stats_view = StatsView(conn)
         self.settings_view = SettingsView(conn)
 
         self.stack = QStackedWidget()
         views = (
             self.dashboard_view, self.import_view, self.courses_view,
-            self.constraints_view, self.schedule_view, self.settings_view,
+            self.constraints_view, self.schedule_view, self.stats_view,
+            self.settings_view,
         )
         # L'ordre historique du stack (tests, toolbar) : tableau de bord, importer,
-        # cours, contraintes, planning, paramètres.
+        # cours, contraintes, planning, statistiques, paramètres.
         for widget in views:
             self.stack.addWidget(widget)
 
@@ -190,6 +194,7 @@ class MainWindow(QMainWindow):
         self._update_status()
 
     def _on_blocks_changed(self) -> None:
+        self.stats_view.refresh()
         self._update_status()
 
     # ------------------------------------------------------------ barre d'outils
@@ -323,6 +328,7 @@ class MainWindow(QMainWindow):
         self.constraints_view.refresh()
         self.schedule_view.refresh()
         self.dashboard_view.refresh()
+        self.stats_view.refresh()
         self._update_status()
         self.data_changed.emit()
 

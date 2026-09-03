@@ -4,6 +4,28 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-03 — Phase 14 : vue Statistiques
+
+- **`scheduler/stats.py`** (pur, `now` en paramètre) : `compute_overview` (heures faites,
+  taux de complétion = blocs échus faits+partiels / blocs échus, efficacité moyenne des
+  blocs faits qui en ont une, écart signé heures faites − heures planifiées échues),
+  `weekly_hours` (semaines ISO contiguës, vides incluses), `hours_by_course`
+  (`color_index` = rang du cours : la couleur suit le cours), `attendance` (fait /
+  partiel / manqué / non renseigné des blocs échus). Tests `tests/test_stats.py`.
+- **`ui/views/stats_view.py`** : 4 tuiles (avance/retard en vert/orange avec icône
+  tendance + libellé), « Heures par semaine » (`widgets/week_bars.py`, barres QPainter,
+  faites en accent sur piste planifiée, étiquettes 11 px tabulaires sur barres non
+  nulles, semaine courante en accent), « Heures par cours »
+  (`HBarChart.set_progress_rows`, valeur « x / y h »), « Assiduité »
+  (`widgets/stacked_bar.py` + légende icône/libellé/compte). États vides guidés.
+- Navigation : entrée « Statistiques » entre Planning et Paramètres (icône `chart`
+  + icônes `minus-circle`/`help-circle`/`trend-up`/`trend-down` dans `ui/icons.py`) ;
+  rafraîchie sur `schedule_view.changed` et après import. `HBarChart` passé aux jetons
+  de `theme`. ARCHITECTURE §5.8 ajouté ; capture `screenshots/stats.png` ; toutes les
+  captures régénérées. pytest 159 verts, ruff propre.
+
+---
+
 ## 2026-09-03 — Finition post-merge (phases 11+12+13 sur main)
 
 - Merge des branches phase11-curve, phase12-ics, phase13-ui dans `main` ; pytest 136 verts

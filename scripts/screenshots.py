@@ -26,7 +26,8 @@ SHOTS = (
     (2, "cours"),
     (3, "contraintes"),
     (4, "planning"),
-    (5, "parametres"),
+    (5, "stats"),
+    (6, "parametres"),
 )
 
 

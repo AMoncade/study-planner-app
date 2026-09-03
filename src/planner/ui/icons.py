@@ -42,6 +42,10 @@ _PATHS: dict[str, str] = {
         '<path d="M5.5 5.5l1.7 1.7"/><path d="M16.8 16.8l1.7 1.7"/>'
         '<path d="M18.5 5.5l-1.7 1.7"/><path d="M7.2 16.8l-1.7 1.7"/>'
     ),
+    "chart": (
+        '<path d="M4 20h16"/>'
+        '<path d="M7 20v-6"/><path d="M12 20V9.5"/><path d="M17 20v-8.5"/>'
+    ),
     # statuts
     "check-circle": (
         '<circle cx="12" cy="12" r="8.5"/><path d="M8.2 12.4l2.6 2.6 5-5.4"/>'
@@ -61,6 +65,21 @@ _PATHS: dict[str, str] = {
     "info-circle": (
         '<circle cx="12" cy="12" r="8.5"/>'
         '<path d="M12 11v5"/><path d="M12 7.6v.01"/>'
+    ),
+    "minus-circle": (
+        '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/>'
+    ),
+    "help-circle": (
+        '<circle cx="12" cy="12" r="8.5"/>'
+        '<path d="M9.6 9.3a2.4 2.4 0 1 1 3.5 2.6c-.8.4-1.1.9-1.1 1.7"/>'
+        '<path d="M12 16.4v.01"/>'
+    ),
+    # tendances (tuile avance/retard)
+    "trend-up": (
+        '<path d="M3.5 16.5L9 11l3.5 3.5L20.5 7"/><path d="M15.5 7h5v5"/>'
+    ),
+    "trend-down": (
+        '<path d="M3.5 7.5L9 13l3.5-3.5 8 8"/><path d="M15.5 17h5v-5"/>'
     ),
 }
 

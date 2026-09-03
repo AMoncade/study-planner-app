@@ -846,6 +846,32 @@ Aperçu commun aux deux niveaux : « temps libre disponible cette semaine : 23 h
 `ConstraintDialog` · `EvaluationEditDialog` · `ImportReportDialog` · `RecalcDiffDialog` ·
 `BlockCompletionDialog` (minutes réelles + efficacité).
 
+### 5.8 Vue **Statistiques** (phase 14)
+
+Bilan de la session à partir de l'historique des blocs (statuts, `actual_minutes`,
+`efficiency`) et du plan courant. Dans la barre latérale entre *Planning* et *Paramètres*.
+Les agrégats vivent dans le module **pur** `scheduler/stats.py` (fonctions
+`(blocks, evaluations, courses, now) -> dataclasses`, `now` toujours en paramètre) ; la vue
+(`ui/views/stats_view.py`) ne fait qu'afficher.
+
+Conventions de calcul :
+
+- **bloc échu** : `end_at <= now` ; les blocs futurs sont exclus de tous les taux ;
+- **heures faites** d'un bloc fait/partiel : `actual_minutes`, repli sur `planned_minutes` ;
+- **taux de complétion** : blocs échus faits + partiels / blocs échus (tous statuts) ;
+- **efficacité moyenne** : moyenne des `efficiency` des blocs *faits* qui en ont une ;
+- **avance/retard** : heures faites (session) − heures planifiées échues, valeur signée.
+
+Contenu (cartes) : 4 tuiles (heures faites, complétion, efficacité, avance/retard avec
+icône tendance + libellé — jamais la couleur seule) ; « Heures par semaine » en barres
+verticales QPainter (faites en accent sur piste planifiée, étiquettes directes sur les
+barres non nulles seulement, libellés courts « s36 », semaine courante en accent) ;
+« Heures par cours » via `HBarChart.set_progress_rows` (couleur du cours en ordre fixe
+`theme.COURSE_COLORS` — la couleur suit le cours, jamais son rang ; valeur « x / y h ») ;
+« Assiduité » en barre empilée (`widgets/stacked_bar.py`) aux couleurs de statut avec
+séparateurs 2 px et légende icône + libellé + compte. États vides : chaque carte reste
+lisible et dit quoi faire. Rafraîchie par `schedule_view.changed` et les imports.
+
 ---
 
 ## 6. Phases de développement
