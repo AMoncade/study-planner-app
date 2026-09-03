@@ -10,32 +10,45 @@ Décision utilisateur actée : étude constante chaque semaine dès le début du
 montée douce avant les examens (l'ancien réglage donnait ~1 h/semaine en septembre et
 29-32 h/semaine en décembre — l'app paraissait « vide » à l'ouverture).
 
-- `config.py` : fenêtres longues — `examen_final` 14 → 42 j, `examen_intra` 14 → 28 j,
-  `quiz` 5 → 7 j, `presentation` 10 → 14 j (travail/projet inchangés à 21 j) ; courbe
-  aplatie — `lam` 0,35 → 0,60, `tau_ratio` 3,0 → 1,5 (τ = D/1,5 : décroissance douce).
-- `scheduler/placer.py` : **carry jour à jour** dans le parcours de fenêtre — la courbe
-  aplatie produit des cibles de 0,5 h, sous `bloc_min` (1 h) ; sans carry elles
-  n'étaient jamais placées et tout le volume partait dans le report massif, entassé au
-  début de fenêtre (semaines à 32 h, semaines à 0 h). Le carry agrège les demi-heures
-  en blocs plaçables un jour sur deux. Le reliquat final se place désormais au plus
-  PRÈS de l'échéance (au lieu du plus loin) : la veille reste le jour le plus chargé.
-- Aucun lissage hebdomadaire global nécessaire : fenêtres longues + courbe plate +
-  carry suffisent (semaine max 27 h sur 32 h de capacité théorique).
+- `scheduler/curve.py` : la fenêtre d'un **examen** (intra/final) couvre désormais
+  **tout l'horizon restant** — `depth = max(D(type), jours jusqu'à l'échéance)` — pour
+  que l'étude commence aujourd'hui même quand l'examen est à 14 semaines. Sans cela,
+  une fenêtre fixe (même 28-42 j) laissait les 2-3 premières semaines du trimestre
+  quasi vides sur les vraies données.
+- `config.py` : `D_TYPE` — `examen_final` 14 → 84 j et `examen_intra` 14 → 42 j
+  (minimums, voir ci-dessus), `quiz` 5 → 7 j, `presentation` 10 → 14 j (travail/projet
+  inchangés à 21 j) ; courbe aplatie — `lam` 0,35 → 0,60, `tau_ratio` 3,0 → 1,5
+  (τ = D/1,5 : décroissance douce).
+- `scheduler/curve.day_targets` : les cibles journalières restent **fractionnaires**
+  (l'arrondi 0,5 h est supprimé) — sur une fenêtre de ~100 j les cibles valent ~0,25 h
+  et l'arrondi les faisait disparaître entièrement.
+- `scheduler/placer.py` : **carry jour à jour** dans le parcours de fenêtre (du plus
+  lointain vers l'échéance) — la courbe aplatie produit des cibles sous `bloc_min`
+  (1 h) ; sans carry elles n'étaient jamais placées et tout le volume partait dans le
+  report massif, entassé au début de fenêtre (semaines à 32 h, semaines à 0 h). Le
+  carry agrège les fractions en blocs plaçables tous les 2-4 jours et dérive vers
+  l'échéance : la veille récupère le reliquat et reste le jour le plus chargé. Le
+  reliquat final se place au plus PRÈS de l'échéance (au lieu du plus loin).
+- Aucun lissage hebdomadaire global nécessaire : fenêtres-horizon + courbe plate +
+  carry suffisent (semaine max 23 h sur 32 h de capacité théorique).
 - Nouveaux tests `test_weekly_balance.py` (scénario semestre synthétique : quiz hebdos,
-  intras mi-octobre, finaux mi-décembre) : chaque semaine > 0 h, première semaine
-  ≥ 3 h, ratio semaine max / semaine médiane ≤ 3, capacité hebdo respectée, veille
-  d'examen = jour le plus chargé de sa fenêtre.
-- Tests adaptés (ancienne forme de courbe encodée) : `test_curve.py::
-  test_window_depth_by_type` (D intra 14 → 28) ; `test_integration.py::
-  test_full_semester_plan` — les finaux de décembre tiennent désormais dans leurs 42 j
-  de fenêtre : plus aucun déficit sur le trimestre réel (l'assertion « déficit
-  signalé » devient « aucun déficit, couverture ≥ 0,95 »).
-- Distribution hebdo sur les 4 fixtures réelles (sept → déc) : avant
+  intras à 6 semaines, finaux à ~15 semaines) : chaque semaine > 0 h, première semaine
+  ≥ 3 h — y compris **sans aucun quiz** (examens seuls, cas réel de début de session),
+  ratio semaine max / semaine médiane ≤ 3, capacité hebdo respectée, veille d'examen
+  = jour le plus chargé de sa fenêtre.
+- Tests adaptés (ancienne forme encodée) : `test_curve.py` — fenêtre d'examen = horizon
+  complet, profondeur fixe testée sur un type non-examen, conservation de la masse sur
+  fenêtre longue (remplace le test d'arrondi 0,5 h) ; `test_integration.py::
+  test_full_semester_plan` — les finaux de décembre tiennent dans leur fenêtre-horizon :
+  plus aucun déficit sur le trimestre réel (l'assertion « déficit signalé » devient
+  « aucun déficit, couverture ≥ 0,95 »).
+- Distribution hebdo sur les 4 fixtures réelles (sept → déc, 16 semaines) : avant
   `1 1 1 2 9 16 17 21 3 1 4 2 8 32 32 7` (ratio pic/médiane 4,6, couverture 0,90) ;
-  après `1 1 5 9 17 16 13 10 7 14 18 16 15 23 19 3` (ratio 1,64, couverture 1,00,
+  après `4 9 12 14 17 18 16 14 7 9 13 11 11 12 9 2` (ratio 1,46, couverture 1,00,
   zéro déficit).
-- `ARCHITECTURE.md` §4 mis à jour (tables D et λ/τ, pseudo-code de l'étape E avec
-  carry et reliquat près de l'échéance, philosophie « régulier dès maintenant »).
+- `ARCHITECTURE.md` §4 mis à jour (fenêtre-horizon des examens, table D, λ/τ, correctif
+  granularité, pseudo-code de l'étape E avec carry vers l'échéance, philosophie
+  « régulier dès maintenant »).
 
 ---
 

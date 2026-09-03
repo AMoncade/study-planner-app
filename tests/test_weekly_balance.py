@@ -109,6 +109,20 @@ def test_no_week_exceeds_weekly_capacity():
             f"semaine {w} : {hours} h > capacité {weekly_capacity(w)} h"
 
 
+def test_first_week_covered_by_exams_alone():
+    """Cas réel début de session : aucun quiz tôt, intras à 6 semaines, finaux à
+    ~14 semaines. Les fenêtres d'examens couvrent tout l'horizon restant : la
+    première semaine doit quand même recevoir >= 3 h, et aucune semaine ne doit
+    être vide jusqu'au dernier examen."""
+    evals = [e for e in make_semester_evaluations() if e.type != "quiz"]
+    result = plan(make_courses(), evals, [], S, TODAY)
+    weeks = hours_by_week(result.blocks)
+    assert weeks.get(0, 0.0) >= 3.0, f"première semaine : {weeks.get(0, 0.0)} h < 3 h"
+    last_week = (LAST_EXAM - TODAY).days // 7
+    for w in range(last_week + 1):
+        assert weeks.get(w, 0.0) > 0.0, f"semaine {w} vide (examens seuls)"
+
+
 def test_day_before_exam_is_heaviest_of_its_window():
     """La veille d'un examen reste le jour le plus chargé de sa fenêtre pour cette éval."""
     course = Course(id=1, code="MAT1000", title="Analyse", term="A26")

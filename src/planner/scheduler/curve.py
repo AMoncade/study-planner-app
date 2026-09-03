@@ -10,7 +10,7 @@ import math
 from datetime import date, timedelta
 
 from planner.config import EngineSettings
-from planner.core.models import Evaluation
+from planner.core.models import EXAM_TYPES, Evaluation
 
 
 def revision_window(
@@ -21,6 +21,13 @@ def revision_window(
         return None
     due_day = ev.due_at.date()
     depth = s.d_type.get(ev.type, s.d_type["autre"])
+    if ev.type in EXAM_TYPES:
+        # Décision 2026-09-02 « régulier dès maintenant » : la fenêtre d'un examen
+        # couvre TOUT l'horizon restant — l'étude commence aujourd'hui, quel que soit
+        # l'éloignement de l'épreuve. D(type) devient un minimum ; le plancher λ
+        # répartit la charge dès maintenant et la décroissance exponentielle garde
+        # la veille comme jour le plus chargé.
+        depth = max(depth, (due_day - today).days)
     start = due_day - timedelta(days=depth)
     if ev.type in ("travail", "projet") and ev.start_date and ev.start_date > start:
         start = ev.start_date
@@ -49,11 +56,14 @@ def day_targets(
     capacities: dict[date, float],
     s: EngineSettings,
 ) -> dict[date, float]:
-    """Heures visées par jour de la fenêtre (corrigées, plafonnées, arrondies à 0,5 h).
+    """Heures visées par jour de la fenêtre (corrigées et plafonnées).
 
     Les jours sans capacité voient leur masse redistribuée proportionnellement (correctif 1),
     le plafond par évaluation et par jour est appliqué (correctif 2), puis l'excédent créé
     par le plafond est reversé sur les jours encore ouverts, du plus proche au plus lointain.
+    Les cibles restent fractionnaires : l'agrégation en blocs de 0,5 h se fait au placement
+    (carry jour à jour) — arrondir ici ferait disparaître la masse des fenêtres longues,
+    dont les cibles journalières sont bien sous 0,5 h.
     """
     depth = max((due_day - d).days for d in window_days) if window_days else 0
     if depth == 0:
@@ -85,5 +95,4 @@ def day_targets(
             targets[d] += add
             excess -= add
 
-    # granularité 0,5 h
-    return {d: round(v * 2) / 2 for d, v in targets.items() if round(v * 2) / 2 > 0}
+    return {d: v for d, v in targets.items() if v > 1e-9}

@@ -1,6 +1,6 @@
 """Tests des étapes B et C : fenêtre de révision et courbe de répartition."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from planner.config import EngineSettings
 from planner.core.models import Evaluation
@@ -22,10 +22,17 @@ def make_eval(**kwargs) -> Evaluation:
 # ---------------------------------------------------------------- fenêtre (B)
 
 
-def test_window_depth_by_type():
-    ev = make_eval(type="examen_intra")  # D = 28 (fenêtres longues, décision 2026-09-02)
+def test_window_exam_covers_full_remaining_horizon():
+    # décision 2026-09-02 : la fenêtre d'un examen s'étend toujours jusqu'à aujourd'hui
+    ev = make_eval(type="examen_intra")
     window = revision_window(ev, TODAY, S)
-    assert window == (date(2026, 9, 22), date(2026, 10, 19))  # veille incluse, jour J exclu
+    assert window == (TODAY, date(2026, 10, 19))  # veille incluse, jour J exclu
+
+
+def test_window_depth_by_type_non_exam():
+    ev = make_eval(type="laboratoire", due_at=datetime(2026, 10, 20, 8, 0))  # D = 7
+    window = revision_window(ev, TODAY, S)
+    assert window == (date(2026, 10, 13), date(2026, 10, 19))
 
 
 def test_window_clipped_by_today():
@@ -95,9 +102,10 @@ def test_day_targets_respect_per_day_cap():
     assert all(v <= S.h_jour_eval for v in targets.values())
 
 
-def test_day_targets_are_half_hour_multiples():
-    days = [date(2026, 10, d) for d in range(10, 20)]
+def test_day_targets_preserve_mass_on_long_windows():
+    # fenêtre longue : cibles journalières < 0,5 h — la masse ne doit PAS disparaître
+    # par arrondi (l'agrégation en blocs se fait au placement, via le carry)
+    days = [date(2026, 9, 1) + timedelta(days=i) for i in range(90)]
     capacities = dict.fromkeys(days, 4.0)
-    targets = day_targets(7.5, days, date(2026, 10, 20), capacities, S)
-    for v in targets.values():
-        assert (v * 2) == int(v * 2)
+    targets = day_targets(20.0, days, date(2026, 11, 30), capacities, S)
+    assert abs(sum(targets.values()) - 20.0) < 1e-6

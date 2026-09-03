@@ -291,14 +291,15 @@ class _Placer:
             target_curves[ev.external_id] = day_plan
 
             placed_total = self.placed_init.get(ev_key, 0.0)
-            # jours traités du plus proche de l'échéance au plus lointain, avec report
+            # jours traités du plus lointain de l'échéance au plus proche, avec report
             # cumulé (carry) : une courbe aplatie produit des cibles de 0,5 h, sous
             # bloc_min — sans carry elles ne seraient jamais placées et tout le volume
             # partirait dans le reliquat, entassé au début de fenêtre. Le carry agrège
-            # les demi-heures en blocs plaçables un jour sur deux, en avançant le
-            # travail (jamais vers l'échéance).
+            # les demi-heures en blocs plaçables un jour sur deux ; il dérive vers
+            # l'échéance (montée douce), si bien que la veille récupère le reliquat
+            # de fin de parcours et reste le jour le plus chargé de la fenêtre.
             carry = 0.0
-            for day in sorted(window_days, key=lambda d: (due_day - d).days):
+            for day in sorted(window_days, key=lambda d: (due_day - d).days, reverse=True):
                 want = day_plan.get(day, 0.0) + carry
                 if want < self.s.bloc_min:
                     carry = want

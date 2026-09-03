@@ -26,9 +26,11 @@ DEFAULT_B_TYPE: dict[str, float] = {
 # Profondeur de la fenêtre de révision, en jours, par type (étape B).
 # Fenêtres longues (décision 2026-09-02, « régulier dès maintenant ») : l'étude
 # démarre tôt dans le trimestre au lieu de s'entasser sur les dernières semaines.
+# Pour les examens (intra/final), ces valeurs sont des MINIMUMS : la fenêtre
+# s'étend toujours jusqu'à aujourd'hui (voir scheduler/curve.revision_window).
 DEFAULT_D_TYPE: dict[str, int] = {
-    "examen_final": 42,
-    "examen_intra": 28,
+    "examen_final": 84,
+    "examen_intra": 42,
     "quiz": 7,
     "travail": 21,
     "projet": 21,

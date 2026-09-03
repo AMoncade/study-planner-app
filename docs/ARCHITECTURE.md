@@ -457,16 +457,19 @@ intégralement le calcul. L'algorithme doit toujours pouvoir être contredit à 
 W(e) = [ max(aujourd'hui, T_e − D(type_e)) ,  T_e − ε(e) ]
 ```
 
-**D(type)** — profondeur de la fenêtre, en jours. Fenêtres **longues** (décision
-2026-09-02, « régulier dès maintenant ») : l'étude d'un examen démarre tôt dans le
-trimestre au lieu de s'entasser sur les deux dernières semaines — de toute façon la
-fenêtre est bornée par `aujourd'hui`, donc une fenêtre longue ne coûte rien en début
-de session :
+**D(type)** — profondeur de la fenêtre, en jours. Décision 2026-09-02 (« régulier dès
+maintenant ») : pour les **examens** (`examen_intra`, `examen_final`), la fenêtre couvre
+**tout l'horizon restant** — `D ← max(D(type), jours entre aujourd'hui et T_e)` — de
+sorte que l'étude d'un examen commence *aujourd'hui*, quel que soit son éloignement.
+Le plancher λ de la courbe (étape C) répartit cette charge dès la première semaine du
+trimestre ; la décroissance exponentielle garde la veille comme jour le plus chargé.
+Les valeurs de la table sont donc des **minimums** pour les examens, et des profondeurs
+effectives pour les autres types :
 
 | type | D (jours) |
 |---|---|
-| `examen_final` | 42 |
-| `examen_intra` | 28 |
+| `examen_final` | 84 (minimum — en pratique : jusqu'à aujourd'hui) |
+| `examen_intra` | 42 (minimum — en pratique : jusqu'à aujourd'hui) |
 | `quiz` | 7 |
 | `travail` / `projet` | 21 (ou depuis `start_date` si celle-ci est plus tardive) |
 | `presentation` | 14 |
@@ -519,7 +522,10 @@ trimestre (§4.9).
    redistribuée proportionnellement sur les jours restants de la fenêtre.
 2. **Plafond par évaluation et par jour** — `h(t) ≤ H_jour_eval = 3 h`. Étudier 5 h la même
    matière dans une seule journée n'est pas réaliste.
-3. **Granularité** — `h(t)` est arrondi au multiple de 0,5 h le plus proche.
+3. **Granularité** — les cibles `h(t)` restent **fractionnaires** ; l'agrégation en blocs
+   de 0,5 h se fait au placement (carry jour à jour, étape E). Arrondir ici ferait
+   disparaître la masse des fenêtres longues, dont les cibles journalières sont bien
+   sous 0,5 h.
 
 ---
 
@@ -577,14 +583,15 @@ Algorithme **glouton, piloté par échéance (EDF), avec débordement contrôlé
 
 2. Pour chaque évaluation e :
      report ← 0
-     Pour chaque jour j de W(e), traité du plus proche de T_e au plus lointain :
+     Pour chaque jour j de W(e), traité du PLUS LOINTAIN de T_e au plus proche :
 
         besoin ← h(j) + report
         si besoin < bloc_min (1 h) :
             report ← besoin ; jour suivant
-            (carry : la courbe aplatie produit des cibles de 0,5 h, sous bloc_min —
-             on les agrège en blocs plaçables un jour sur deux, en avançant le
-             travail, jamais vers l'échéance)
+            (carry : la courbe aplatie produit des cibles fractionnaires, sous
+             bloc_min — on les agrège en blocs plaçables tous les 2-4 jours ; le
+             report dérive vers l'échéance, si bien que la veille récupère le
+             reliquat de fin de parcours et reste le jour le plus chargé)
         tant que besoin ≥ bloc_min :
             durée     ← min(besoin, bloc_max = 2 h), arrondi à 0,5 h
             candidats ← toutes les plages libres contiguës ≥ durée dans j
