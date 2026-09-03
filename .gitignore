@@ -16,3 +16,5 @@ plans_de_cours/          # PDF personnels, jamais versionnes
 *.egg-info/
 
 .env
+setup.log
+.claude/

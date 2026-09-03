@@ -4,6 +4,18 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-03 — Finition post-merge (phases 11+12+13 sur main)
+
+- Merge des branches phase11-curve, phase12-ics, phase13-ui dans `main` ; pytest 136 verts
+  (Postgres inclus), ruff propre.
+- Calendrier : titres de blocs élidés sur une ligne (les titres longs « Examen intra/final »
+  chevauchaient la ligne d'heure).
+- Recalcul appliqué sur la base réelle avec le nouveau moteur : 175 blocs, 9-17 h/semaine
+  réguliers, couverture 100 % (sauvegarde : data/plan_etudes.avant-recalcul-20260903.db).
+- Captures d'écran régénérées avec le plan peuplé (screenshots/).
+
+---
+
 ## 2026-09-02 — Phase 13 : refonte visuelle (thème sombre × bleu UdeM)
 
 - **Jetons** : `ui/theme.py` centralise fonds (#131720/#10141c/#161b25/#1a202b),

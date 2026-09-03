@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from planner.core.models import WEEKDAYS
@@ -232,8 +232,11 @@ class WeekCalendar(QWidget):
             suffix = STATUS_SUFFIX.get(block.status, "")
             inner = rect.adjusted(self.PAD_X, self.PAD_Y, -self.PAD_X, -self.PAD_Y)
             painter.setFont(label_font)
-            painter.drawText(inner, Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap,
-                             f"{prefix}{block.label}{suffix}")
+            # Titre sur une seule ligne, élidé : le retour à la ligne des titres
+            # longs (« Examen intra ») chevauchait la ligne d'heure en bas.
+            label = QFontMetrics(label_font).elidedText(
+                f"{prefix}{block.label}{suffix}", Qt.ElideRight, inner.width())
+            painter.drawText(inner, Qt.AlignTop | Qt.AlignLeft, label)
             duration = (block.end_at - block.start_at).total_seconds() / 3600
             painter.setFont(time_font)
             painter.drawText(inner, Qt.AlignBottom | Qt.AlignLeft,
