@@ -4,6 +4,41 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-02 — Phase 11 : courbe aplatie, « régulier dès maintenant »
+
+Décision utilisateur actée : étude constante chaque semaine dès le début du semestre,
+montée douce avant les examens (l'ancien réglage donnait ~1 h/semaine en septembre et
+29-32 h/semaine en décembre — l'app paraissait « vide » à l'ouverture).
+
+- `config.py` : fenêtres longues — `examen_final` 14 → 42 j, `examen_intra` 14 → 28 j,
+  `quiz` 5 → 7 j, `presentation` 10 → 14 j (travail/projet inchangés à 21 j) ; courbe
+  aplatie — `lam` 0,35 → 0,60, `tau_ratio` 3,0 → 1,5 (τ = D/1,5 : décroissance douce).
+- `scheduler/placer.py` : **carry jour à jour** dans le parcours de fenêtre — la courbe
+  aplatie produit des cibles de 0,5 h, sous `bloc_min` (1 h) ; sans carry elles
+  n'étaient jamais placées et tout le volume partait dans le report massif, entassé au
+  début de fenêtre (semaines à 32 h, semaines à 0 h). Le carry agrège les demi-heures
+  en blocs plaçables un jour sur deux. Le reliquat final se place désormais au plus
+  PRÈS de l'échéance (au lieu du plus loin) : la veille reste le jour le plus chargé.
+- Aucun lissage hebdomadaire global nécessaire : fenêtres longues + courbe plate +
+  carry suffisent (semaine max 27 h sur 32 h de capacité théorique).
+- Nouveaux tests `test_weekly_balance.py` (scénario semestre synthétique : quiz hebdos,
+  intras mi-octobre, finaux mi-décembre) : chaque semaine > 0 h, première semaine
+  ≥ 3 h, ratio semaine max / semaine médiane ≤ 3, capacité hebdo respectée, veille
+  d'examen = jour le plus chargé de sa fenêtre.
+- Tests adaptés (ancienne forme de courbe encodée) : `test_curve.py::
+  test_window_depth_by_type` (D intra 14 → 28) ; `test_integration.py::
+  test_full_semester_plan` — les finaux de décembre tiennent désormais dans leurs 42 j
+  de fenêtre : plus aucun déficit sur le trimestre réel (l'assertion « déficit
+  signalé » devient « aucun déficit, couverture ≥ 0,95 »).
+- Distribution hebdo sur les 4 fixtures réelles (sept → déc) : avant
+  `1 1 1 2 9 16 17 21 3 1 4 2 8 32 32 7` (ratio pic/médiane 4,6, couverture 0,90) ;
+  après `1 1 5 9 17 16 13 10 7 14 18 16 15 23 19 3` (ratio 1,64, couverture 1,00,
+  zéro déficit).
+- `ARCHITECTURE.md` §4 mis à jour (tables D et λ/τ, pseudo-code de l'étape E avec
+  carry et reliquat près de l'échéance, philosophie « régulier dès maintenant »).
+
+---
+
 ## 2026-09-02 — Phase 10 : reprise sur machine neuve (sync-restore, doctor, ETAT.md)
 
 - `sync.restore(pg_conn, sqlite_conn, force=False)` : inverse de push — reconstruit la

@@ -291,15 +291,28 @@ class _Placer:
             target_curves[ev.external_id] = day_plan
 
             placed_total = self.placed_init.get(ev_key, 0.0)
-            # jours traités du plus proche de l'échéance au plus lointain
-            for day in sorted(day_plan, key=lambda d: (due_day - d).days):
-                placed_total += self.place_hours(ev_key, ev, day, day_plan[day])
+            # jours traités du plus proche de l'échéance au plus lointain, avec report
+            # cumulé (carry) : une courbe aplatie produit des cibles de 0,5 h, sous
+            # bloc_min — sans carry elles ne seraient jamais placées et tout le volume
+            # partirait dans le reliquat, entassé au début de fenêtre. Le carry agrège
+            # les demi-heures en blocs plaçables un jour sur deux, en avançant le
+            # travail (jamais vers l'échéance).
+            carry = 0.0
+            for day in sorted(window_days, key=lambda d: (due_day - d).days):
+                want = day_plan.get(day, 0.0) + carry
+                if want < self.s.bloc_min:
+                    carry = want
+                    continue
+                placed = self.place_hours(ev_key, ev, day, want)
+                placed_total += placed
+                carry = want - placed
 
-            # report : le reliquat avance vers les jours plus éloignés de l'échéance ;
-            # un demi-heure restant est arrondi à un bloc minimal plutôt qu'abandonné
+            # report final : le reliquat (pertes d'arrondi, jours saturés) se place au
+            # plus près de l'échéance — la fraîcheur paie, et la veille reste le jour
+            # le plus chargé de la fenêtre.
             remaining = h_total - placed_total
             if remaining >= 0.5:
-                for day in sorted(window_days, key=lambda d: (due_day - d).days, reverse=True):
+                for day in sorted(window_days, key=lambda d: (due_day - d).days):
                     if remaining < 0.5:
                         break
                     placed = self.place_hours(

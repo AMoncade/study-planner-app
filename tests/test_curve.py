@@ -23,9 +23,9 @@ def make_eval(**kwargs) -> Evaluation:
 
 
 def test_window_depth_by_type():
-    ev = make_eval(type="examen_intra")  # D = 14
+    ev = make_eval(type="examen_intra")  # D = 28 (fenêtres longues, décision 2026-09-02)
     window = revision_window(ev, TODAY, S)
-    assert window == (date(2026, 10, 6), date(2026, 10, 19))  # veille incluse, jour J exclu
+    assert window == (date(2026, 9, 22), date(2026, 10, 19))  # veille incluse, jour J exclu
 
 
 def test_window_clipped_by_today():

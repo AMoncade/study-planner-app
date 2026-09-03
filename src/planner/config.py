@@ -24,13 +24,15 @@ DEFAULT_B_TYPE: dict[str, float] = {
 }
 
 # Profondeur de la fenêtre de révision, en jours, par type (étape B).
+# Fenêtres longues (décision 2026-09-02, « régulier dès maintenant ») : l'étude
+# démarre tôt dans le trimestre au lieu de s'entasser sur les dernières semaines.
 DEFAULT_D_TYPE: dict[str, int] = {
-    "examen_final": 14,
-    "examen_intra": 14,
-    "quiz": 5,
+    "examen_final": 42,
+    "examen_intra": 28,
+    "quiz": 7,
     "travail": 21,
     "projet": 21,
-    "presentation": 10,
+    "presentation": 14,
     "laboratoire": 7,
     "lecture": 7,
     "participation": 7,
@@ -68,9 +70,10 @@ class EngineSettings:
     exam_margin_minutes: int = 30        # dernier bloc >= 30 min avant un examen
     submission_margin_minutes: int = 120  # aucun bloc après T-2h pour une remise
 
-    # Étape C — courbe
-    lam: float = 0.35            # plancher d'étalement λ
-    tau_ratio: float = 3.0       # τ = D / tau_ratio
+    # Étape C — courbe (aplatie, décision 2026-09-02 : montée douce avant examen,
+    # ratio pic/plancher journalier ~2-3×, jamais 15×)
+    lam: float = 0.60            # plancher d'étalement λ
+    tau_ratio: float = 1.5       # τ = D / tau_ratio
     h_jour_eval: float = 3.0     # plafond par évaluation et par jour
 
     # Étape D — disponibilité

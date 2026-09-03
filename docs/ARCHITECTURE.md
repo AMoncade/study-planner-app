@@ -457,15 +457,19 @@ intégralement le calcul. L'algorithme doit toujours pouvoir être contredit à 
 W(e) = [ max(aujourd'hui, T_e − D(type_e)) ,  T_e − ε(e) ]
 ```
 
-**D(type)** — profondeur de la fenêtre, en jours :
+**D(type)** — profondeur de la fenêtre, en jours. Fenêtres **longues** (décision
+2026-09-02, « régulier dès maintenant ») : l'étude d'un examen démarre tôt dans le
+trimestre au lieu de s'entasser sur les deux dernières semaines — de toute façon la
+fenêtre est bornée par `aujourd'hui`, donc une fenêtre longue ne coûte rien en début
+de session :
 
 | type | D (jours) |
 |---|---|
-| `examen_final` | 14 |
-| `examen_intra` | 14 |
-| `quiz` | 5 |
+| `examen_final` | 42 |
+| `examen_intra` | 28 |
+| `quiz` | 7 |
 | `travail` / `projet` | 21 (ou depuis `start_date` si celle-ci est plus tardive) |
-| `presentation` | 10 |
+| `presentation` | 14 |
 | autres | 7 |
 
 **ε(e)** — marge de sécurité avant l'échéance :
@@ -483,24 +487,31 @@ placement et signalée comme « trop tard » au tableau de bord.
 
 Combien d'heures placer à `t` jours de l'échéance ? Deux forces opposées : la révision espacée
 (mémorisation à long terme) contre la fraîcheur (réviser près de l'examen paie). On mélange
-les deux.
+les deux — et depuis la décision « régulier dès maintenant » (2026-09-02), la révision
+espacée **domine** : courbe presque plate, montée douce vers l'échéance.
 
 ```
 g(t) = (1 − λ) · exp( −(t − 1) / τ )  +  λ / D          pour t = 1 … D
 
-τ = D / 3        (constante de décroissance)
-λ = 0.35         (plancher uniforme : garantit l'étalement)
+τ = D / 1.5      (constante de décroissance — décroissance douce)
+λ = 0.60         (plancher uniforme majoritaire : garantit l'étalement)
 
 p(t) = g(t) / Σ_{k=1..D} g(k)               (normalisation, Σ p = 1)
 h(t) = H_total · p(t)                        (heures visées ce jour-là)
 ```
 
-> Exemple `D = 14`, `H_total = 10 h` : ≈ 1,4 h à J−1 · 1,2 h à J−2 · 0,9 h à J−4 ·
-> 0,6 h à J−7 · 0,4 h à J−12. Charge concentrée sur la dernière semaine, sans jamais laisser
-> la première semaine à zéro.
+La veille (`t = 1`) reste le jour le plus chargé de la fenêtre, mais le ratio
+`g(1) / g(D)` est **modéré** (~3-4× au niveau du jour, < 2× en agrégat hebdomadaire
+mesuré sur un trimestre type) — jamais le mur de dernière minute (15×) que produisait
+l'ancien réglage `λ = 0,35`, `τ = D/3`.
 
-Réglage de `λ` : `λ → 0` = bachotage pur, `λ → 1` = étalement plat. `0,35` est un point de
-départ, **à recalibrer** contre un vrai trimestre (§4.9).
+> Exemple `D = 42`, `H_total = 24 h` : ≈ 1,0 h/jour sur la dernière semaine,
+> ≈ 0,5 h/jour sur la première. La charge hebdomadaire est quasi constante du début de
+> la fenêtre à l'échéance, avec une crête douce la dernière semaine.
+
+Réglage de `λ` : `λ → 0` = bachotage pur, `λ → 1` = étalement plat. `0,60` est la valeur
+actée le 2026-09-02 (« régulier dès maintenant ») ; recalibrable contre un vrai
+trimestre (§4.9).
 
 **Correctifs appliqués à `h(t)` avant placement :**
 
@@ -565,23 +576,29 @@ Algorithme **glouton, piloté par échéance (EDF), avec débordement contrôlé
    (EDF est optimal en faisabilité sur machine unique ; le poids départage.)
 
 2. Pour chaque évaluation e :
+     report ← 0
      Pour chaque jour j de W(e), traité du plus proche de T_e au plus lointain :
 
-        besoin ← h(j)
-        tant que besoin ≥ bloc_min (1 h) :
+        besoin ← h(j) + report
+        si besoin < bloc_min (1 h) :
+            report ← besoin ; jour suivant
+            (carry : la courbe aplatie produit des cibles de 0,5 h, sous bloc_min —
+             on les agrège en blocs plaçables un jour sur deux, en avançant le
+             travail, jamais vers l'échéance)
+        tant que besoin ≥ bloc_min :
             durée     ← min(besoin, bloc_max = 2 h), arrondi à 0,5 h
             candidats ← toutes les plages libres contiguës ≥ durée dans j
             si candidats = ∅ : sortir de la boucle
             choisir le candidat de coût C minimal (ci-dessous)
             placer le bloc, marquer les créneaux occupés
             besoin ← besoin − durée
+        report ← besoin
 
-        si besoin > 0 après épuisement du jour :
-            reporter `besoin` sur les jours voisins de W(e) ayant de la capacité,
-            en privilégiant les jours PLUS ÉLOIGNÉS de T_e
-            (on avance le travail, on ne le repousse jamais vers l'échéance)
+     si un reliquat subsiste après le parcours de W(e) (pertes d'arrondi, jours
+     saturés) : le replacer au PLUS PRÈS de T_e — la fraîcheur paie, et la veille
+     reste le jour le plus chargé de la fenêtre.
 
-        si le report échoue : accumuler dans deficit(e)
+     si le report échoue : accumuler dans deficit(e)
 
 3. Retourner (blocs, déficit par évaluation, métriques)
 ```
@@ -671,8 +688,8 @@ B_TYPE            # table des charges de base par type
 ALPHA      = 0.60 # exposant de pondération
 BETA       = 0.15 # pente de difficulté
 U_REF      = 5    # unités de matière de référence
-LAMBDA     = 0.35 # plancher d'étalement de la courbe
-TAU_RATIO  = 3    # tau = D / TAU_RATIO
+LAMBDA     = 0.60 # plancher d'étalement de la courbe (« régulier dès maintenant »)
+TAU_RATIO  = 1.5  # tau = D / TAU_RATIO (décroissance douce)
 D_TYPE            # profondeur de fenêtre par type
 H_JOUR_MAX = {"semaine": 4.0, "weekend": 6.0}
 H_JOUR_EVAL = 3.0

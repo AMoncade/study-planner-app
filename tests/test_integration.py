@@ -54,8 +54,10 @@ def test_full_semester_plan(loaded_conn):
     assert result.metrics.coverage >= 0.85
     assert result.metrics.peak_hours <= S.h_jour_max_weekend
 
-    # les finaux de décembre s'entassent : le déficit doit être signalé, pas caché
-    assert any(d > 0 for d in result.deficits.values())
+    # fenêtres longues + courbe aplatie (2026-09-02) : les finaux de décembre tiennent
+    # désormais dans leurs 42 jours de fenêtre — plus aucun déficit sur ce trimestre
+    assert all(d == 0 for d in result.deficits.values())
+    assert result.metrics.coverage >= 0.95
 
 
 def test_plan_determinism_on_real_data(loaded_conn):
