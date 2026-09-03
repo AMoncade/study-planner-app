@@ -586,6 +586,11 @@ Algorithme **glouton, piloté par échéance (EDF), avec débordement contrôlé
      Pour chaque jour j de W(e), traité du PLUS LOINTAIN de T_e au plus proche :
 
         besoin ← h(j) + report
+        au premier jour ayant de la capacité : besoin ← max(besoin, bloc_min)
+            (amorce : un premier bloc tombe dès l'ouverture de la fenêtre — sinon
+             chaque évaluation accumulerait 3-5 jours de cibles fractionnaires et
+             les premiers jours du plan resteraient vides ; le report devient
+             négatif et rembourse l'avance, la masse totale est conservée)
         si besoin < bloc_min (1 h) :
             report ← besoin ; jour suivant
             (carry : la courbe aplatie produit des cibles fractionnaires, sous

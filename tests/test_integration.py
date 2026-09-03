@@ -87,3 +87,22 @@ def test_sessions_block_study_time(loaded_conn):
         start = slot_index(b.start_at.time())
         for i in range(start, start + b.planned_minutes // 30):
             assert day[i], f"bloc {b.start_at} sur un créneau occupé (séance/éveil)"
+
+
+def test_first_days_are_not_empty(loaded_conn):
+    """L'utilisateur ouvre l'app le mercredi de la 1re semaine de cours : les 3
+    premiers jours doivent déjà porter de l'étude (>= 2 h cumulées) — une semaine
+    courante vide est le symptôme d'origine de la calibration 2026-09-02."""
+    from datetime import timedelta
+
+    wednesday = date(2026, 9, 2)
+    courses = repos.list_courses(loaded_conn)
+    evaluations = [
+        e for c in courses for e in repos.list_evaluations(loaded_conn, course_id=c.id)
+    ]
+    result = plan(courses, evaluations, [], S, wednesday)
+    first_days = {wednesday + timedelta(days=i) for i in range(3)}
+    total = sum(
+        b.planned_minutes / 60 for b in result.blocks if b.start_at.date() in first_days
+    )
+    assert total >= 2.0, f"3 premiers jours : {total} h < 2 h"

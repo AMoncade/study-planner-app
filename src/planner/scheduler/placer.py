@@ -299,14 +299,24 @@ class _Placer:
             # l'échéance (montée douce), si bien que la veille récupère le reliquat
             # de fin de parcours et reste le jour le plus chargé de la fenêtre.
             carry = 0.0
+            # amorce : sans elle, chaque évaluation accumulerait 3-5 jours de cibles
+            # fractionnaires avant d'atteindre bloc_min, et les tout premiers jours
+            # du plan resteraient vides (le symptôme d'origine). On avance donc un
+            # premier bloc dès le premier jour de fenêtre ayant de la capacité ; le
+            # carry devient négatif et rembourse l'avance sur les jours suivants —
+            # la masse totale est conservée.
+            boost = h_needed >= self.s.bloc_min
             for day in sorted(window_days, key=lambda d: (due_day - d).days, reverse=True):
-                want = day_plan.get(day, 0.0) + carry
+                base = day_plan.get(day, 0.0) + carry
+                want = max(base, self.s.bloc_min) if boost else base
                 if want < self.s.bloc_min:
-                    carry = want
+                    carry = base
                     continue
                 placed = self.place_hours(ev_key, ev, day, want)
                 placed_total += placed
-                carry = want - placed
+                if placed > 0:
+                    boost = False
+                carry = base - placed
 
             # report final : le reliquat (pertes d'arrondi, jours saturés) se place au
             # plus près de l'échéance — la fraîcheur paie, et la veille reste le jour

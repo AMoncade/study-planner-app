@@ -29,6 +29,13 @@ montée douce avant les examens (l'ancien réglage donnait ~1 h/semaine en septe
   carry agrège les fractions en blocs plaçables tous les 2-4 jours et dérive vers
   l'échéance : la veille récupère le reliquat et reste le jour le plus chargé. Le
   reliquat final se place au plus PRÈS de l'échéance (au lieu du plus loin).
+- `scheduler/placer.py` : **amorce** du carry — au premier jour de fenêtre ayant de
+  la capacité, la demande est montée à `bloc_min` pour déposer un premier bloc
+  immédiatement ; le carry devient négatif et rembourse l'avance (masse conservée).
+  Sans amorce, chaque évaluation accumulait 3-5 jours de cibles fractionnaires avant
+  son premier bloc : plan généré un mercredi → rien avant le dimanche, semaine
+  courante vide (le symptôme d'origine). Après : mer 4 h, jeu 4 h, ven 1 h sur les
+  fixtures réelles ; test `test_first_days_are_not_empty` (3 premiers jours ≥ 2 h).
 - Aucun lissage hebdomadaire global nécessaire : fenêtres-horizon + courbe plate +
   carry suffisent (semaine max 23 h sur 32 h de capacité théorique).
 - Nouveaux tests `test_weekly_balance.py` (scénario semestre synthétique : quiz hebdos,
