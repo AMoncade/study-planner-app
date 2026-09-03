@@ -194,7 +194,7 @@ class ImportView(QWidget):
         self.preview.setRowCount(len(evaluations))
         for i, ev in enumerate(evaluations):
             for j, value in enumerate((
-                ev["id"], ev["title"], ev["type"], f"{ev['weight']:g}",
+                ev["id"], ev["title"], ev["type"], theme.fmt_number(ev["weight"], 2),
                 ev["due_date"] or "à saisir",
             )):
                 item = QTableWidgetItem(str(value))

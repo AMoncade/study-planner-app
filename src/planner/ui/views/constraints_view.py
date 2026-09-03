@@ -31,6 +31,7 @@ from planner.config import EngineSettings
 from planner.core.models import CONSTRAINT_CATEGORIES, WEEKDAYS, Constraint
 from planner.scheduler.availability import build_grid, free_hours
 from planner.storage import repositories as repos
+from planner.ui import theme
 
 
 class ConstraintDialog(QDialog):
@@ -269,5 +270,6 @@ class ConstraintsView(QWidget):
         grid = build_grid(monday, monday + timedelta(days=6), constraints, courses,
                           EngineSettings())
         hours = sum(free_hours(slots) for slots in grid.values())
-        self.free_label.setText(f"Temps libre disponible cette semaine : {hours:g} h "
-                                "(contraintes et séances de cours déduites)")
+        self.free_label.setText(
+            f"Temps libre disponible cette semaine : {theme.fmt_number(hours)} h "
+            "(contraintes et séances de cours déduites)")

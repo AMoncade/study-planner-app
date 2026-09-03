@@ -79,7 +79,7 @@ class WeekBarChart(QWidget):
                         QRectF(i * slot - slot, min(track_top, done_top) - 18,
                                slot * 3, 14),
                         Qt.AlignHCenter | Qt.AlignBottom,
-                        f"{round(week.done_hours, 1):g}",
+                        theme.fmt_number(week.done_hours),
                     )
             if week.is_current or i % label_step == 0:
                 painter.setFont(axis_font)

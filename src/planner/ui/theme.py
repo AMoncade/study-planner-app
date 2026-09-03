@@ -87,3 +87,14 @@ def tabular_font(base: QFont, point_size: int | None = None,
     with contextlib.suppress(AttributeError, TypeError):
         font.setFeature(QFont.Tag("tnum"), 1)
     return font
+
+
+def fmt_number(value: float, decimals: int = 1) -> str:
+    """Nombre à la française : virgule décimale, zéros inutiles retirés.
+
+    `fmt_number(1.3) -> "1,3"`, `fmt_number(9.0) -> "9"`, `fmt_number(0.25, 2) -> "0,25"`.
+    L'unité (h, %) reste à la charge de l'appelant (parfois « x / y h »).
+    """
+    rounded = round(float(value), decimals)
+    text = f"{rounded:.{decimals}f}".rstrip("0").rstrip(".")
+    return (text or "0").replace(".", ",")

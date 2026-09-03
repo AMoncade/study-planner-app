@@ -161,7 +161,17 @@ def test_stats_view_refreshes_on_populated_db(qtbot, loaded_conn):
     view = StatsView(loaded_conn)
     qtbot.addWidget(view)
     view.refresh(now=datetime(2026, 9, 3, 12, 0))
-    assert view.tile_hours.value.text() == "1.5 h"
+    assert view.tile_hours.value.text() == "1,5 h"   # virgule décimale (UI française)
     assert view.tile_completion.value.text() == "50 %"
     assert view.tile_efficiency.value.text() == "80 %"
     assert view.tile_delta.value.text().startswith("−")  # 1.5 h faites / 3 h échues
+
+
+def test_fmt_number_uses_french_decimal_comma():
+    """L'interface est en français : virgule décimale, pas de zéro inutile."""
+    from planner.ui.theme import fmt_number
+
+    assert fmt_number(1.3) == "1,3"
+    assert fmt_number(9.0) == "9"
+    assert fmt_number(0) == "0"
+    assert fmt_number(12.5) == "12,5"

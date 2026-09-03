@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from planner.config import load_engine_settings
 from planner.scheduler.rebalance import RebalanceDiff, apply_rebalance, rebalance
 from planner.storage import repositories as repos
+from planner.ui import theme
 from planner.ui.widgets.badge import Badge
 from planner.ui.widgets.week_calendar import BlockView, BusyView, WeekCalendar
 
@@ -208,7 +209,8 @@ class ScheduleView(QWidget):
             for b in week_blocks if b.status in ("done", "partial")
         ) / 60
         missing = sum(1 for e in evaluations if e.due_at is None)
-        message = f"Cette semaine : {planned:g} h planifiées · {done:g} h faites."
+        message = (f"Cette semaine : {theme.fmt_number(planned)} h planifiées · "
+                   f"{theme.fmt_number(done)} h faites.")
         if not blocks:
             message += "  Aucun bloc : cliquer sur « Recalculer le plan »."
         self.banner.setText(message)
@@ -338,7 +340,7 @@ class ScheduleView(QWidget):
             f"{ev.external_id} — {ev.title}",
             f"Cours : {course.code} — {course.title}" if course else "",
             f"Échéance : {ev.due_at:%Y-%m-%d %H:%M}" if ev.due_at else "Échéance : à saisir",
-            f"Poids : {ev.weight:g} %",
+            f"Poids : {theme.fmt_number(ev.weight, 2)} %",
         ]
         if ev.notes:
             lines.append(f"Notes : {ev.notes}")

@@ -72,7 +72,8 @@ class HBarChart(QWidget):
                                     self.ROW - 10, 4, 4)
             painter.setPen(QColor(theme.TEXT_PRIMARY))
             painter.drawText(QRect(self.LABEL_WIDTH + width + 6, y, 58, self.ROW - 4),
-                             Qt.AlignLeft | Qt.AlignVCenter, f"{value:g} {self.unit}")
+                             Qt.AlignLeft | Qt.AlignVCenter,
+                             f"{theme.fmt_number(value)} {self.unit}")
 
     def _paint_progress(self, painter: QPainter) -> None:
         """Barre = heures faites (couleur du cours) sur piste = heures planifiées."""
@@ -102,5 +103,5 @@ class HBarChart(QWidget):
                 QRect(self.width() - self.VALUE_WIDTH, y, self.VALUE_WIDTH,
                       self.ROW - 4),
                 Qt.AlignRight | Qt.AlignVCenter,
-                f"{done:g} / {planned:g} {self.unit}",
+                f"{theme.fmt_number(done)} / {theme.fmt_number(planned)} {self.unit}",
             )

@@ -202,7 +202,7 @@ class StatsView(QWidget):
 
         # ---- tuiles
         overview = compute_overview(blocks, now)
-        self.tile_hours.set(f"{round(overview.done_hours, 1):g} h",
+        self.tile_hours.set(f"{theme.fmt_number(overview.done_hours)} h",
                             "sur toute la session")
 
         if overview.completion_rate is not None:
@@ -224,7 +224,7 @@ class StatsView(QWidget):
             ahead = delta >= 0
             sign = "+" if ahead else "−"
             self.tile_delta.set(
-                f"{sign}{abs(delta):.1f} h",
+                f"{sign}{theme.fmt_number(abs(delta))} h",
                 "en avance sur le plan" if ahead else "en retard sur le plan",
                 value_color=theme.STATUS_OK if ahead else theme.STATUS_SERIOUS,
                 icon="trend-up" if ahead else "trend-down",

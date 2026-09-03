@@ -171,8 +171,10 @@ class DashboardView(QWidget):
                                f"Semestre en surcharge : facteur ρ = {result.rho:.2f}."))
             for external_id, deficit in sorted(result.deficits.items()):
                 if deficit > 0:
-                    alerts.append(("serious", f"{external_id} : déficit de {deficit:g} h "
-                                              "(préparation insuffisante)."))
+                    alerts.append((
+                        "serious",
+                        f"{external_id} : déficit de {theme.fmt_number(deficit)} h "
+                        "(préparation insuffisante)."))
             for external_id, reason in sorted(result.exclusions.items()):
                 if "manquante" in reason:
                     alerts.append(("warn", f"{external_id} : {reason}."))
@@ -189,7 +191,8 @@ class DashboardView(QWidget):
             (b.actual_minutes if b.actual_minutes is not None else b.planned_minutes)
             for b in week_blocks if b.status in ("done", "partial")
         ) / 60
-        self.tile_week.set(f"{done:g} / {planned:g} h", "faites / planifiées")
+        self.tile_week.set(f"{theme.fmt_number(done)} / {theme.fmt_number(planned)} h",
+                           "faites / planifiées")
 
         self.tile_coverage.set(
             f"{coverage * 100:.0f} %" if coverage is not None else "—",
@@ -253,7 +256,7 @@ class DashboardView(QWidget):
             label = QLabel(f"{course.code} · {ev.title}")
             label.setProperty("role", "secondary")
             label.setMinimumWidth(240)
-            hours_label = QLabel(f"{done_ev:g} / {target:g} h")
+            hours_label = QLabel(f"{theme.fmt_number(done_ev)} / {theme.fmt_number(target)} h")
             hours_label.setProperty("role", "caption")
             hours_label.setFont(theme.tabular_font(hours_label.font()))
             hours_label.setMinimumWidth(70)

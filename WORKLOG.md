@@ -4,6 +4,18 @@ Une entrée par tâche terminée, la plus récente en haut.
 
 ---
 
+## 2026-09-03 — Nombres à la française dans toute l'interface
+
+- `theme.fmt_number()` : virgule décimale, zéros inutiles retirés (`1,3` · `9` · `0,25`).
+  Ajouté en écrivant la vue Statistiques, qui affichait « 1.3 h » dans une UI française.
+- Appliqué aux 13 endroits qui formataient un nombre pour l'affichage : tuiles et barres
+  du tableau de bord et des statistiques, bandeau du planning, blocs du calendrier,
+  temps libre des contraintes, poids des évaluations (2 décimales : les quiz valent 0,25 %).
+- Laissé en notation anglaise à dessein : les champs *éditables* des Paramètres (relus par
+  `float()`) et l'alpha CSS de `theme.rgba()`.
+
+---
+
 ## 2026-09-03 — Phase 14 : vue Statistiques
 
 - **`scheduler/stats.py`** (pur, `now` en paramètre) : `compute_overview` (heures faites,

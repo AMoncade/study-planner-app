@@ -240,7 +240,7 @@ class WeekCalendar(QWidget):
             duration = (block.end_at - block.start_at).total_seconds() / 3600
             painter.setFont(time_font)
             painter.drawText(inner, Qt.AlignBottom | Qt.AlignLeft,
-                             f"{block.start_at:%H:%M} · {duration:g} h")
+                             f"{block.start_at:%H:%M} · {theme.fmt_number(duration)} h")
 
         # ligne « maintenant » : 2 px accent avec point, sur la colonne du jour
         now = self.now_provider()
