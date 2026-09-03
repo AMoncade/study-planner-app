@@ -3,19 +3,20 @@
 Confort, jamais un bloqueur : le moteur ne lit que le modèle de données. La grille
 convertit cellules ↔ contraintes hebdomadaires via deux fonctions pures testables.
 Peinture par sélection glissée puis « Peindre » / « Effacer » ; annulation par pile
-de sauvegardes ; « Enregistrer » remplace les contraintes hebdomadaires en base.
+de sauvegardes (bouton ou Ctrl+Z) ; « Enregistrer » remplace les contraintes
+hebdomadaires en base. La catégorie se choisit par chips arrondies à pastille.
 """
 
 from __future__ import annotations
 
 from datetime import time
 
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
-    QComboBox,
+    QButtonGroup,
     QHBoxLayout,
-    QLabel,
+    QHeaderView,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -24,16 +25,9 @@ from PySide6.QtWidgets import (
 )
 
 from planner.core.models import CONSTRAINT_CATEGORIES, WEEKDAYS, Constraint
-
-CATEGORY_COLORS = {
-    "travail": "#8455c9",
-    "entrainement": "#2fa46a",
-    "transport": "#8b919b",
-    "sommeil": "#3f4854",
-    "personnel": "#c77b2f",
-    "cours": "#5a5f68",
-    "autre": "#3aa6b9",
-}
+from planner.ui import theme
+from planner.ui.theme import CATEGORY_COLORS  # noqa: F401  (réexport historique)
+from planner.ui.widgets.badge import Badge
 
 Cells = dict[tuple[int, int], str]  # (jour 0-6, rangée) -> catégorie
 
@@ -93,8 +87,62 @@ def constraints_from_cells(
     return constraints
 
 
+class CategoryChips(QWidget):
+    """Rangée de chips arrondies (pastille couleur + nom) — une seule active.
+
+    Expose la même API que le QComboBox qu'elle remplace :
+    `currentText()` / `setCurrentText()`.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        for name in CONSTRAINT_CATEGORIES:
+            color = theme.CATEGORY_COLORS[name]
+            chip = QPushButton(name.capitalize())
+            chip.setCheckable(True)
+            chip.setCursor(Qt.PointingHandCursor)
+            dot = QPixmap(10, 10)
+            dot.fill(Qt.transparent)
+            painter = QPainter(dot)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(color))
+            painter.drawEllipse(0, 0, 10, 10)
+            painter.end()
+            chip.setIcon(QIcon(dot))
+            chip.setStyleSheet(
+                "QPushButton { background-color: #1a202b; border: 1px solid #2d3542;"
+                " border-radius: 16px; padding: 0 14px; min-height: 30px;"
+                " font-size: 12px; color: #9da6b5; }"
+                f" QPushButton:hover {{ border-color: {theme.rgba(color, 0.6)}; }}"
+                " QPushButton:checked {"
+                f" background-color: {theme.rgba(color, 0.14)};"
+                f" border: 1px solid {theme.rgba(color, 0.6)}; color: #e8ebf0; }}"
+            )
+            self._group.addButton(chip)
+            layout.addWidget(chip)
+        layout.addStretch(1)
+        self._group.buttons()[0].setChecked(True)
+
+    def currentText(self) -> str:
+        return self._group.checkedButton().text().lower()
+
+    def setCurrentText(self, name: str) -> None:
+        for button in self._group.buttons():
+            if button.text().lower() == name.lower():
+                button.setChecked(True)
+                return
+
+
 class ConstraintGrid(QWidget):
     saved = Signal()
+
+    ROW_HEIGHT = 30      # px par demi-heure (lisibilité de la grille)
 
     def __init__(self, conn, wake_start: time = time(8, 0), wake_end: time = time(22, 0),
                  parent=None):
@@ -107,39 +155,48 @@ class ConstraintGrid(QWidget):
 
         rows = slots_in_window(wake_start, wake_end)
         self.table = QTableWidget(rows, 7)
-        self.table.setHorizontalHeaderLabels([d[:3] for d in WEEKDAYS])
-        self.table.setVerticalHeaderLabels(
-            [row_to_time(r, wake_start).strftime("%H:%M") for r in range(rows)]
-        )
-        self.table.verticalHeader().setDefaultSectionSize(16)
-        self.table.horizontalHeader().setDefaultSectionSize(90)
+        self.table.setHorizontalHeaderLabels([d.capitalize() for d in WEEKDAYS])
+        # étiquette d'heure sur les rangées pleines seulement : plus respirant
+        self.table.setVerticalHeaderLabels([
+            row_to_time(r, wake_start).strftime("%H:%M")
+            if row_to_time(r, wake_start).minute == 0 else ""
+            for r in range(rows)
+        ])
+        self.table.verticalHeader().setDefaultSectionSize(self.ROW_HEIGHT)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
+        self.table.setShowGrid(True)
 
-        self.category = QComboBox()
-        for name in CONSTRAINT_CATEGORIES:
-            self.category.addItem(name)
+        self.category = CategoryChips()
         paint = QPushButton("Peindre la sélection")
         paint.clicked.connect(self._paint)
         erase = QPushButton("Effacer la sélection")
         erase.clicked.connect(self._erase)
         undo = QPushButton("Annuler")
+        undo.setToolTip("Ctrl+Z")
         undo.clicked.connect(self._undo)
         save = QPushButton("Enregistrer la grille")
+        save.setProperty("kind", "primary")
         save.clicked.connect(self._save)
-        self.feedback = QLabel("Glisser pour sélectionner, puis peindre ou effacer.")
+        QShortcut(QKeySequence.Undo, self, activated=self._undo)
 
-        toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("Catégorie :"))
-        toolbar.addWidget(self.category)
-        toolbar.addWidget(paint)
-        toolbar.addWidget(erase)
-        toolbar.addWidget(undo)
-        toolbar.addWidget(save)
-        toolbar.addStretch()
+        self.feedback = Badge("Glisser pour sélectionner, puis peindre ou effacer.",
+                              kind="neutral")
+
+        actions = QHBoxLayout()
+        actions.setSpacing(8)
+        actions.addWidget(paint)
+        actions.addWidget(erase)
+        actions.addWidget(undo)
+        actions.addStretch()
+        actions.addWidget(save)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(toolbar)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self.category)
+        layout.addLayout(actions)
         layout.addWidget(self.table)
         layout.addWidget(self.feedback)
         self.reload()
@@ -164,10 +221,11 @@ class ConstraintGrid(QWidget):
                     self.table.setItem(row, col, item)
                 category = self.cells.get((col, row))
                 if category:
-                    item.setBackground(QColor(CATEGORY_COLORS[category]))
+                    color = theme.qcolor(theme.CATEGORY_COLORS[category], 0.55)
+                    item.setBackground(color)
                     item.setToolTip(category)
                 else:
-                    item.setBackground(QColor("#23262c"))
+                    item.setBackground(QColor(theme.BG_SURFACE))
                     item.setToolTip("")
 
     # ------------------------------------------------------------ actions
@@ -220,7 +278,7 @@ class ConstraintGrid(QWidget):
                     (c.label, c.category, c.weekday, c.start.isoformat(),
                      c.end.isoformat()),
                 )
-        self.feedback.setText(
-            f"✅ {len(new_constraints)} contrainte(s) hebdomadaire(s) enregistrée(s)."
+        self.feedback.set_status(
+            f"{len(new_constraints)} contrainte(s) hebdomadaire(s) enregistrée(s).", "ok"
         )
         self.saved.emit()

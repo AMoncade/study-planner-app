@@ -28,16 +28,19 @@ class HBarChart(QWidget):
         maximum = max((v for _, v, _ in self.rows), default=0.0)
         for i, (label, value, color) in enumerate(self.rows):
             y = 4 + i * self.ROW
-            painter.setPen(QColor("#9aa0aa"))
+            painter.setPen(QColor("#9da6b5"))
             painter.drawText(QRect(0, y, self.LABEL_WIDTH - 8, self.ROW - 4),
                              Qt.AlignRight | Qt.AlignVCenter, label)
             available = self.width() - self.LABEL_WIDTH - 64
             width = 0 if maximum == 0 else int(available * value / maximum)
             painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#232a36"))  # piste
+            painter.drawRoundedRect(self.LABEL_WIDTH, y + 3, max(available, 2),
+                                    self.ROW - 10, 4, 4)
             painter.setBrush(QColor(color))
             painter.drawRoundedRect(self.LABEL_WIDTH, y + 3, max(width, 2),
-                                    self.ROW - 10, 3, 3)
-            painter.setPen(QColor("#d6d9de"))
+                                    self.ROW - 10, 4, 4)
+            painter.setPen(QColor("#e8ebf0"))
             painter.drawText(QRect(self.LABEL_WIDTH + width + 6, y, 58, self.ROW - 4),
                              Qt.AlignLeft | Qt.AlignVCenter, f"{value:g} {self.unit}")
         painter.end()

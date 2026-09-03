@@ -131,6 +131,33 @@ def update_course_manual_fields(
     conn.commit()
 
 
+# ------------------------------------------------------------------ sessions
+
+
+def insert_session(conn: sqlite3.Connection, course_id: int, s: Session) -> int:
+    """Insère une séance seule (import .ics) sans toucher aux autres séances du cours."""
+    cursor = conn.execute(
+        """INSERT INTO sessions (course_id, kind, weekday, start, end, room,
+                                 start_date, end_date, except_dates)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (course_id, s.kind, s.weekday, _iso(s.start), _iso(s.end), s.room,
+         _iso(s.start_date), _iso(s.end_date),
+         json.dumps([d.isoformat() for d in s.except_dates])),
+    )
+    return cursor.lastrowid
+
+
+def update_session_schedule(conn: sqlite3.Connection, session_id: int, s: Session) -> None:
+    """Met à jour salle et bornes de dates d'une séance existante ; le `kind`
+    (réglé par l'import JSON ou à la main) n'est jamais écrasé."""
+    conn.execute(
+        """UPDATE sessions SET room = ?, start_date = ?, end_date = ?, except_dates = ?
+           WHERE id = ?""",
+        (s.room, _iso(s.start_date), _iso(s.end_date),
+         json.dumps([d.isoformat() for d in s.except_dates]), session_id),
+    )
+
+
 # ------------------------------------------------------------------ evaluations
 
 _EVAL_COLUMNS = """id, course_id, external_id, title, type, weight, due_at, start_date,
@@ -188,6 +215,11 @@ def update_evaluation_from_import(conn: sqlite3.Connection, eval_id: int, ev: Ev
          ev.estimated_pages, json.dumps(ev.resources, ensure_ascii=False), ev.notes,
          ev.confidence, ev.source_excerpt, eval_id),
     )
+
+
+def update_evaluation_due_at(conn: sqlite3.Connection, eval_id: int, due_at: datetime) -> None:
+    """Met à jour la seule échéance (import .ics avec --apply-exam-dates)."""
+    conn.execute("UPDATE evaluations SET due_at = ? WHERE id = ?", (_iso(due_at), eval_id))
 
 
 def archive_evaluation(conn: sqlite3.Connection, eval_id: int) -> None:

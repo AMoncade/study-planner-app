@@ -1,9 +1,10 @@
 """Calendrier hebdomadaire dessiné à la main (ARCHITECTURE §5.4).
 
 QWidget avec paintEvent : colonnes = jours, axe vertical = heures d'éveil.
-Superpositions : contraintes en gris hachuré, séances de cours en gris plein,
-blocs d'étude en couleur du cours. Interactions : sélection, menu contextuel,
-glisser-déposer (verrouille le bloc), double-clic (signal de détail).
+Superpositions : contraintes et séances en gris hachuré (jamais en couleur de
+cours), blocs d'étude en couleur du cours (fond teinté + bordure + texte clair).
+Interactions : sélection, menu contextuel, glisser-déposer (verrouille le bloc),
+double-clic (signal de détail).
 """
 
 from __future__ import annotations
@@ -12,14 +13,22 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from planner.core.models import WEEKDAYS
+from planner.ui import theme
+from planner.ui.theme import COURSE_COLORS  # noqa: F401  (réexport historique)
 
-# Couleurs par cours (cycle) et par statut.
-COURSE_COLORS = ("#2f6fed", "#2fa46a", "#c77b2f", "#a04fc9", "#c94f5e", "#3aa6b9")
-STATUS_ALPHA = {"planned": 220, "moved": 220, "done": 110, "partial": 150, "skipped": 80}
+# Opacités de bloc par statut : (fond, bordure) en fraction 0-1.
+STATUS_FILL = {
+    "planned": (0.16, 0.55),
+    "moved": (0.16, 0.55),
+    "done": (0.34, 0.80),
+    "partial": (0.25, 0.65),
+    "skipped": (0.08, 0.25),
+}
+STATUS_SUFFIX = {"done": " ✓", "partial": " ◐", "skipped": " ✗"}
 
 
 @dataclass
@@ -52,7 +61,10 @@ class WeekCalendar(QWidget):
     block_activated = Signal(int)                # double-clic
 
     GUTTER = 46          # marge gauche pour l'axe des heures
-    HEADER = 28          # bandeau des jours
+    HEADER = 30          # bandeau des jours
+    RADIUS = 6           # rayon des blocs
+    PAD_X = 8            # padding interne horizontal du texte
+    PAD_Y = 5            # padding interne vertical du texte
 
     def __init__(self, day_start: time = time(8, 0), day_end: time = time(22, 0),
                  parent=None):
@@ -63,6 +75,7 @@ class WeekCalendar(QWidget):
         self.blocks: list[BlockView] = []
         self.busy: list[BusyView] = []
         self.selected_id: int | None = None
+        self.now_provider = datetime.now   # remplaçable en test / capture
         self._drag: tuple[int, QPoint] | None = None   # (id de bloc, position souris)
         self._drag_pos: QPoint | None = None
         self.setMinimumHeight(420)
@@ -130,51 +143,71 @@ class WeekCalendar(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         width, height = self.width(), self.height()
         column = self._column_width()
+        today = date.today()
 
-        painter.fillRect(0, 0, width, height, QColor("#1e2126"))
+        painter.fillRect(0, 0, width, height, QColor(theme.BG_SURFACE))
 
-        # en-têtes de jours + fond des colonnes
+        header_font = QFont(self.font())
+        header_font.setPixelSize(11)
+        header_font.setWeight(QFont.DemiBold)
+        hour_font = theme.tabular_font(self.font())
+        hour_font.setPixelSize(10)
+
+        # colonne du jour teintée + en-têtes de jours
         for col in range(7):
             day = self.monday + timedelta(days=col)
             x = self.GUTTER + col * column
-            if day == date.today():
+            if day == today:
                 painter.fillRect(int(x), self.HEADER, int(column), height - self.HEADER,
-                                 QColor("#23262c"))
-            painter.setPen(QPen(QColor("#8b919b")))
+                                 theme.qcolor(theme.ACCENT, 0.05))
+            painter.setFont(header_font)
+            painter.setPen(QPen(QColor(theme.ACCENT if day == today
+                                       else theme.TEXT_SECONDARY)))
             painter.drawText(QRect(int(x), 0, int(column), self.HEADER), Qt.AlignCenter,
-                             f"{WEEKDAYS[col][:3]} {day.day:02d}/{day.month:02d}")
+                             f"{WEEKDAYS[col][:3].capitalize()} {day.day:02d}/{day.month:02d}")
 
-        # lignes horaires + axe
-        painter.setPen(QPen(QColor("#2c313a")))
+        # gridlines à toutes les heures + étiquettes d'heures
         hour = self.day_start.hour
         while hour <= self.day_end.hour:
             y = int(self._y(time(hour, 0)))
+            painter.setPen(QPen(QColor(theme.SEPARATOR)))
             painter.drawLine(self.GUTTER, y, width, y)
-            painter.setPen(QPen(QColor("#6b7078")))
-            painter.drawText(QRect(0, y - 8, self.GUTTER - 6, 16),
+            painter.setFont(hour_font)
+            painter.setPen(QPen(QColor(theme.TEXT_MUTED)))
+            painter.drawText(QRect(0, y - 8, self.GUTTER - 8, 16),
                              Qt.AlignRight | Qt.AlignVCenter, f"{hour:02d}h")
-            painter.setPen(QPen(QColor("#2c313a")))
-            hour += 2
+            hour += 1
 
         # séparateurs de colonnes
+        painter.setPen(QPen(QColor(theme.SEPARATOR)))
         for col in range(8):
             x = int(self.GUTTER + col * column)
             painter.drawLine(x, self.HEADER, x, height)
 
-        # contraintes et séances
+        # contraintes et séances : hachures 45° grises, jamais en couleur de cours
+        busy_font = QFont(self.font())
+        busy_font.setPixelSize(10)
+        painter.setFont(busy_font)
         for busy in self.busy:
             if not (self.monday <= busy.day <= self.monday + timedelta(days=6)):
                 continue
             rect = self._rect_for(busy.day, busy.start, busy.end)
-            if busy.hatched:
-                painter.fillRect(rect, QBrush(QColor(90, 95, 104, 90), Qt.BDiagPattern))
-            else:
-                painter.fillRect(rect, QColor(90, 95, 104, 140))
-            painter.setPen(QPen(QColor("#9aa0aa")))
-            painter.drawText(rect.adjusted(4, 2, -2, -2),
+            painter.setPen(QPen(QColor(theme.CONTROL_BORDER)))
+            painter.setBrush(QColor("#1b202b"))
+            painter.drawRoundedRect(rect, self.RADIUS, self.RADIUS)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(QColor("#202634"), Qt.BDiagPattern))
+            painter.drawRoundedRect(rect, self.RADIUS, self.RADIUS)
+            painter.setPen(QPen(QColor(theme.TEXT_MUTED)))
+            painter.drawText(rect.adjusted(self.PAD_X, self.PAD_Y, -4, -2),
                              Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap, busy.label)
 
-        # blocs d'étude
+        # blocs d'étude : fond couleur cours teinté + bordure + texte clair
+        label_font = QFont(self.font())
+        label_font.setPixelSize(11)
+        label_font.setWeight(QFont.DemiBold)
+        time_font = theme.tabular_font(self.font())
+        time_font.setPixelSize(10)
         for block in self.blocks:
             if not (self.monday <= block.start_at.date() <= self.monday + timedelta(days=6)):
                 continue
@@ -183,22 +216,42 @@ class WeekCalendar(QWidget):
             )
             if self._drag and self._drag[0] == block.id and self._drag_pos is not None:
                 rect.moveTopLeft(rect.topLeft() + (self._drag_pos - self._drag[1]))
-            color = QColor(COURSE_COLORS[block.course_key % len(COURSE_COLORS)])
-            color.setAlpha(STATUS_ALPHA.get(block.status, 220))
+            base = COURSE_COLORS[block.course_key % len(COURSE_COLORS)]
+            fill_alpha, border_alpha = STATUS_FILL.get(block.status, (0.16, 0.55))
             if block.id == self.selected_id:
-                painter.setPen(QPen(QColor("#f0f2f5"), 2))
+                painter.setPen(QPen(QColor(theme.ACCENT), 2))
             else:
-                painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawRoundedRect(rect, 5, 5)
-            painter.setPen(QPen(QColor("#0d0f12") if block.status in ("planned", "moved")
-                                else QColor("#c8ccd2")))
-            duration = (block.end_at - block.start_at).total_seconds() / 3600
+                painter.setPen(QPen(theme.qcolor(base, border_alpha), 1))
+            painter.setBrush(theme.qcolor(base, fill_alpha))
+            painter.drawRoundedRect(rect, self.RADIUS, self.RADIUS)
+
+            muted = block.status == "skipped"
+            text_color = QColor(theme.TEXT_MUTED) if muted else theme.lightened(base)
+            painter.setPen(QPen(text_color))
             prefix = "🔒 " if block.locked else ""
-            suffix = {"done": " ✓", "partial": " ◐", "skipped": " ✗"}.get(block.status, "")
-            painter.drawText(rect.adjusted(5, 2, -4, -2),
-                             Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap,
-                             f"{prefix}{block.label}{suffix}\n{duration:g} h")
+            suffix = STATUS_SUFFIX.get(block.status, "")
+            inner = rect.adjusted(self.PAD_X, self.PAD_Y, -self.PAD_X, -self.PAD_Y)
+            painter.setFont(label_font)
+            painter.drawText(inner, Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap,
+                             f"{prefix}{block.label}{suffix}")
+            duration = (block.end_at - block.start_at).total_seconds() / 3600
+            painter.setFont(time_font)
+            painter.drawText(inner, Qt.AlignBottom | Qt.AlignLeft,
+                             f"{block.start_at:%H:%M} · {duration:g} h")
+
+        # ligne « maintenant » : 2 px accent avec point, sur la colonne du jour
+        now = self.now_provider()
+        if (self.monday <= now.date() <= self.monday + timedelta(days=6)
+                and self.day_start <= now.time() <= self.day_end):
+            col = (now.date() - self.monday).days
+            x1 = int(self.GUTTER + col * column)
+            x2 = int(x1 + column)
+            y = int(self._y(now.time()))
+            painter.setPen(QPen(QColor(theme.ACCENT), 2))
+            painter.drawLine(x1 + 2, y, x2 - 2, y)
+            painter.setBrush(QColor(theme.ACCENT))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(QPoint(x1 + 4, y), 3, 3)
         painter.end()
 
     # ------------------------------------------------------------ souris

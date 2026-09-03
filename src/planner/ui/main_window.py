@@ -1,22 +1,25 @@
-"""Coquille de l'application (ARCHITECTURE §5.0) : barre latérale + QStackedWidget."""
+"""Coquille de l'application (ARCHITECTURE §5.0) : barre latérale fixe + QStackedWidget."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
-    QSplitter,
     QStackedWidget,
     QStatusBar,
+    QVBoxLayout,
     QWidget,
 )
 
 from planner.resources import resource_path
+from planner.ui import theme
+from planner.ui.icons import svg_icon
 from planner.ui.views.constraints_view import ConstraintsView
 from planner.ui.views.courses_view import CoursesView
 from planner.ui.views.dashboard_view import DashboardView
@@ -26,18 +29,17 @@ from planner.ui.views.settings_view import SettingsView
 
 STYLE_PATH = resource_path("planner/ui/style.qss")
 
+SIDEBAR_WIDTH = 232
 
-class _Placeholder(QWidget):
-    def __init__(self, message: str, parent=None):
-        super().__init__(parent)
-        from PySide6.QtWidgets import QVBoxLayout
-
-        label = QLabel(message)
-        label.setWordWrap(True)
-        layout = QVBoxLayout(self)
-        layout.addStretch()
-        layout.addWidget(label)
-        layout.addStretch()
+# (libellé, icône) des six items de navigation, dans l'ordre du QStackedWidget.
+NAV_ITEMS = (
+    ("Tableau de bord", "dashboard"),
+    ("Importer", "import"),
+    ("Cours et évaluations", "book"),
+    ("Contraintes", "timetable"),
+    ("Planning", "calendar"),
+    ("Paramètres", "gear"),
+)
 
 
 class MainWindow(QMainWindow):
@@ -47,7 +49,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.conn = conn
         self.setWindowTitle("Plan-Études")
-        self.resize(1200, 760)
+        self.resize(1280, 800)
 
         self.dashboard_view = DashboardView(conn)
         self.import_view = ImportView(conn)
@@ -57,27 +59,24 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView(conn)
 
         self.stack = QStackedWidget()
-        self.nav = QListWidget()
-        self.nav.setIconSize(QSize(20, 20))
-        self.nav.setMaximumWidth(210)
-        for name, widget in (
-            ("Tableau de bord", self.dashboard_view),
-            ("Importer", self.import_view),
-            ("Cours et évaluations", self.courses_view),
-            ("Contraintes", self.constraints_view),
-            ("Planning", self.schedule_view),
-            ("Paramètres", self.settings_view),
-        ):
-            QListWidgetItem(name, self.nav)
+        views = (
+            self.dashboard_view, self.import_view, self.courses_view,
+            self.constraints_view, self.schedule_view, self.settings_view,
+        )
+        # L'ordre historique du stack (tests, toolbar) : tableau de bord, importer,
+        # cours, contraintes, planning, paramètres.
+        for widget in views:
             self.stack.addWidget(widget)
-        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
-        self.nav.setCurrentRow(0)
 
-        splitter = QSplitter()
-        splitter.addWidget(self.nav)
-        splitter.addWidget(self.stack)
-        splitter.setStretchFactor(1, 1)
-        self.setCentralWidget(splitter)
+        sidebar = self._build_sidebar()
+
+        central = QWidget()
+        layout = QHBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(sidebar)
+        layout.addWidget(self.stack, 1)
+        self.setCentralWidget(central)
 
         self._build_toolbar()
         self._build_tray()
@@ -93,6 +92,94 @@ class MainWindow(QMainWindow):
         # Le tableau de bord fait un recalcul à blanc : le rafraîchir seulement
         # quand on l'affiche évite de payer ce calcul à chaque modification.
         self.nav.currentRowChanged.connect(self._maybe_refresh_dashboard)
+
+    # ------------------------------------------------------------ barre latérale
+
+    def _build_sidebar(self) -> QWidget:
+        sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(SIDEBAR_WIDTH)
+
+        # En-tête : pastille « P » bleu UdeM + titre + session.
+        logo = QLabel("P")
+        logo.setObjectName("logoBadge")
+        logo.setFixedSize(34, 34)
+        logo.setAlignment(Qt.AlignCenter)
+        title = QLabel("Plan-Études")
+        title.setObjectName("appTitle")
+        self.session_label = QLabel(self._session_text())
+        self.session_label.setObjectName("appSubtitle")
+        titles = QVBoxLayout()
+        titles.setContentsMargins(0, 0, 0, 0)
+        titles.setSpacing(1)
+        titles.addWidget(title)
+        titles.addWidget(self.session_label)
+        header = QHBoxLayout()
+        header.setContentsMargins(16, 18, 16, 14)
+        header.setSpacing(10)
+        header.addWidget(logo)
+        header.addLayout(titles, 1)
+
+        # Navigation : icônes SVG 18 px, item actif en lavis accent.
+        self.nav = QListWidget()
+        self.nav.setObjectName("navList")
+        self.nav.setIconSize(QSize(18, 18))
+        self.nav.setFocusPolicy(Qt.NoFocus)
+        for name, icon_name in NAV_ITEMS:
+            item = QListWidgetItem(
+                svg_icon(icon_name, theme.TEXT_SECONDARY, theme.TEXT_PRIMARY), name
+            )
+            item.setSizeHint(QSize(0, 36))
+            self.nav.addItem(item)
+        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.nav.setCurrentRow(0)
+
+        # Pied : état de synchronisation de la base locale.
+        self.sync_label = QLabel()
+        self.sync_label.setObjectName("syncStatus")
+        self.sync_label.setContentsMargins(16, 10, 16, 14)
+        self._update_sync_label()
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addLayout(header)
+        layout.addWidget(self.nav, 1)
+        layout.addWidget(self.sync_label)
+        return sidebar
+
+    def _session_text(self) -> str:
+        from planner.storage import repositories as repos
+
+        terms = [c.term for c in repos.list_courses(self.conn) if c.term]
+        if not terms:
+            return "Aucun cours importé"
+        # trimestre le plus fréquent (une session à la fois en pratique)
+        term = max(set(terms), key=terms.count)
+        return f"Session {term}"
+
+    def _update_sync_label(self) -> None:
+        """« ● Synchronisé · il y a N min » d'après l'horodatage de la base locale."""
+        from datetime import datetime
+
+        from planner.storage.db import DEFAULT_DB_PATH
+
+        path = Path(DEFAULT_DB_PATH)
+        if not path.exists():
+            self.sync_label.setText(
+                f'<span style="color:{theme.TEXT_MUTED}">●</span> Base en mémoire'
+            )
+            return
+        minutes = int((datetime.now().timestamp() - path.stat().st_mtime) / 60)
+        if minutes < 1:
+            age = "à l'instant"
+        elif minutes < 60:
+            age = f"il y a {minutes} min"
+        else:
+            age = f"il y a {minutes // 60} h"
+        self.sync_label.setText(
+            f'<span style="color:{theme.STATUS_OK}">●</span> Synchronisé · {age}'
+        )
 
     def _maybe_refresh_dashboard(self, row: int) -> None:
         if row == 0:
@@ -193,7 +280,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QSystemTrayIcon
 
         pixmap = QPixmap(32, 32)
-        pixmap.fill(QColor("#2f6fed"))
+        pixmap.fill(QColor(theme.BRAND))
         painter = QPainter(pixmap)
         painter.setPen(QColor("white"))
         painter.drawText(pixmap.rect(), 0x84, "PÉ")  # AlignCenter
@@ -248,8 +335,10 @@ class MainWindow(QMainWindow):
         ]
         missing = sum(1 for e in evaluations if e.due_at is None)
         message = (f"{len(courses)} cours · {len(evaluations)} évaluations"
-                   + (f" · ⚠ {missing} sans date" if missing else ""))
+                   + (f" · {missing} sans date" if missing else ""))
         self.statusBar().showMessage(message)
+        self.session_label.setText(self._session_text())
+        self._update_sync_label()
 
 
 def apply_style(app) -> None:

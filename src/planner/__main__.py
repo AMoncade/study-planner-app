@@ -41,6 +41,29 @@ def cmd_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_import_ics(args: argparse.Namespace) -> int:
+    from planner.core.ics_import import format_ics_report, import_ics_file
+
+    if not Path(args.db).exists():
+        print("Aucune base de données. Importer d'abord un fichier JSON.", file=sys.stderr)
+        return 1
+    backup_database(args.db)  # copie de sûreté avant tout import (§3.2)
+    conn = connect(args.db)
+    try:
+        report = import_ics_file(
+            conn, args.file, today=date.today(), apply_exam_dates=args.apply_exam_dates
+        )
+    except ImportBlockedError as exc:
+        print("IMPORT REFUSÉ :", file=sys.stderr)
+        for error in exc.errors:
+            print(f"  ❌ {error}", file=sys.stderr)
+        return 1
+    finally:
+        conn.close()
+    print(format_ics_report(report))
+    return 0
+
+
 def cmd_list(args: argparse.Namespace) -> int:
     if not Path(args.db).exists():
         print("Aucune base de données. Importer d'abord un fichier JSON.", file=sys.stderr)
@@ -245,6 +268,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_import = sub.add_parser("import", help="importer un JSON de cours généré par Claude")
     p_import.add_argument("file", help="chemin du fichier .json")
     p_import.set_defaults(func=cmd_import)
+
+    p_ics = sub.add_parser(
+        "import-ics", help="importer l'horaire .ics du centre étudiant (séances de cours)"
+    )
+    p_ics.add_argument("file", help="chemin du fichier .ics")
+    p_ics.add_argument(
+        "--apply-exam-dates", action="store_true",
+        help="mettre à jour les échéances d'examen en conflit avec la date du .ics",
+    )
+    p_ics.set_defaults(func=cmd_import_ics)
 
     p_list = sub.add_parser("list", help="lister les cours et évaluations")
     p_list.set_defaults(func=cmd_list)

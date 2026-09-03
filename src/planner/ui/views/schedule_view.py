@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from planner.config import load_engine_settings
 from planner.scheduler.rebalance import RebalanceDiff, apply_rebalance, rebalance
 from planner.storage import repositories as repos
+from planner.ui.widgets.badge import Badge
 from planner.ui.widgets.week_calendar import BlockView, BusyView, WeekCalendar
 
 
@@ -77,26 +78,48 @@ class ScheduleView(QWidget):
         self.settings = load_engine_settings(conn)
         self.monday = date.today() - timedelta(days=date.today().weekday())
 
+        title = QLabel("Planning")
+        title.setProperty("role", "viewTitle")
+
         previous_week = QPushButton("◀")
+        previous_week.setFixedWidth(36)
         previous_week.clicked.connect(lambda: self._shift_week(-1))
         today_button = QPushButton("Aujourd'hui")
         today_button.clicked.connect(self._go_today)
         next_week = QPushButton("▶")
+        next_week.setFixedWidth(36)
         next_week.clicked.connect(lambda: self._shift_week(1))
         self.week_label = QLabel()
         self.week_label.setAlignment(Qt.AlignCenter)
+        self.week_label.setProperty("role", "secondary")
         self.recalc_button = QPushButton("Recalculer le plan")
+        self.recalc_button.setProperty("kind", "primary")
         self.recalc_button.clicked.connect(self.recalculate)
 
         nav = QHBoxLayout()
+        nav.setSpacing(8)
+        nav.addWidget(title)
+        nav.addSpacing(16)
         nav.addWidget(previous_week)
         nav.addWidget(today_button)
         nav.addWidget(next_week)
         nav.addWidget(self.week_label, 1)
         nav.addWidget(self.recalc_button)
 
+        # Bandeau : carte avec le résumé de la semaine + badge d'avertissement.
+        from PySide6.QtWidgets import QFrame
+
         self.banner = QLabel()
         self.banner.setWordWrap(True)
+        self.banner_warn = Badge(kind="warn")
+        self.banner_warn.hide()
+        banner_card = QFrame()
+        banner_card.setProperty("card", True)
+        banner_layout = QHBoxLayout(banner_card)
+        banner_layout.setContentsMargins(16, 10, 16, 10)
+        banner_layout.setSpacing(12)
+        banner_layout.addWidget(self.banner, 1)
+        banner_layout.addWidget(self.banner_warn)
 
         self.calendar = WeekCalendar(self.settings.wake_start, self.settings.wake_end)
         self.calendar.block_context_requested.connect(self._context_menu)
@@ -104,8 +127,10 @@ class ScheduleView(QWidget):
         self.calendar.block_activated.connect(self._show_detail)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
         layout.addLayout(nav)
-        layout.addWidget(self.banner)
+        layout.addWidget(banner_card)
         layout.addWidget(self.calendar, 1)
 
         self.refresh()
@@ -184,11 +209,14 @@ class ScheduleView(QWidget):
         ) / 60
         missing = sum(1 for e in evaluations if e.due_at is None)
         message = f"Cette semaine : {planned:g} h planifiées · {done:g} h faites."
-        if missing:
-            message += f"  ⚠ {missing} évaluation(s) sans date."
         if not blocks:
             message += "  Aucun bloc : cliquer sur « Recalculer le plan »."
         self.banner.setText(message)
+        if missing:
+            self.banner_warn.setText(f"{missing} évaluation(s) sans date")
+            self.banner_warn.show()
+        else:
+            self.banner_warn.hide()
 
     # ------------------------------------------------------------ navigation
 
